@@ -1,0 +1,11 @@
+export { default as authRoutes } from './auth.routes';
+export { default as adminAuthRoutes } from './admin.auth.routes';
+export { default as adminRoutes } from './admin.routes';
+export { default as metaRoutes } from './meta.routes';
+export { default as organizationRoutes } from './organization.routes';
+export { default as knowledgeBaseRoutes } from './knowledgeBase.routes';
+export { default as workflowRequestRoutes } from './workflowRequest.routes';
+export { default as webhookRoutes } from './webhook.routes';
+export { default as notificationRoutes } from './notification.routes';
+export { default as analyticsRoutes } from './analytics.routes';
+export { default as billingRoutes } from './billing.routes';

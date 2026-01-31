@@ -1,0 +1,8 @@
+{
+  "name": "Seekers AI - Enterprise Automation Platform",
+  "description": "A multi-tenant SaaS platform for connecting Meta Business accounts to AI-powered chatbots with integrated knowledge bases and professional workflow fulfillment.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

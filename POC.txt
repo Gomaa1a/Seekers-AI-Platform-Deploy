@@ -1,0 +1,3025 @@
+# Seekers AI - Multi-Tenant SaaS Platform with n8n Workflows
+## Complete Technical Specification for Enterprise Implementation
+
+---
+
+## PROJECT OVERVIEW
+
+Build a complete multi-tenant SaaS platform that allows ANY ORGANIZATION (businesses, educational institutions, e-commerce, etc.) to connect their Meta Business accounts (Facebook Pages & Instagram) to AI-powered chatbots. The platform acts as a CONNECTION MANAGER, KNOWLEDGE BASE REPOSITORY, and WEBHOOK ROUTER.
+
+**Business Model:**
+1. Organizations register on the platform
+2. Connect their Meta Business accounts via OAuth
+3. Add Knowledge Bases (separate for chatbot messages and comments)
+4. Request workflows/automations with optional add-ons
+5. Seekers AI team receives notifications, builds n8n workflows, assigns webhooks
+6. Platform routes all incoming messages/comments to client-specific workflows
+
+**Key Architecture:**
+- Meta App receives webhooks from Facebook/Instagram
+- SaaS Platform manages: client connections, knowledge bases, workflow requests
+- Admin Panel (Seekers) manages: workflow setup, webhook assignment, client monitoring
+- n8n Server (Seekers AI) hosts individual workflows per client
+- AI Processing happens in n8n workflows (using client's knowledge base)
+
+**Company:** Seekers AI (Cairo, Egypt)
+**Product:** Seekers AI Platform (Multi-Industry)
+**Target:** Any organization requiring Meta chatbot automation
+
+---
+
+## TECHNICAL STACK
+
+### Backend
+- **Runtime:** Node.js 20+ with TypeScript
+- **Framework:** Express.js or Fastify
+- **Database:** PostgreSQL 15+
+- **Cache/Queue:** Redis + Bull for job queues
+- **ORM:** node-postgres (pg) with SQL queries
+- **Auth:** JWT with bcrypt password hashing
+- **Security:** helmet, cors, express-rate-limit
+
+### Infrastructure
+- **Hosting:** Docker containers (can deploy to Railway/Render/AWS)
+- **Database:** PostgreSQL (Supabase or self-hosted)
+- **File Storage:** Local initially, S3 for production
+- **Logging:** Winston
+- **Monitoring:** Optional (Sentry for errors)
+
+### APIs & Integrations
+- **Meta Graph API v18.0+**
+- **n8n Webhooks** (custom Seekers AI instance)
+- **OpenAI API** (optional, for testing - main AI in n8n)
+
+---
+
+## PROJECT STRUCTURE
+```
+seekers-saas/
+├── backend/
+│   ├── src/
+│   │   ├── config/
+│   │   │   ├── database.ts           # PostgreSQL connection pool
+│   │   │   ├── redis.ts              # Redis connection
+│   │   │   ├── environment.ts        # Environment variables validation
+│   │   │   └── logger.ts             # Winston logger setup
+│   │   │
+│   │   ├── middleware/
+│   │   │   ├── auth.ts               # JWT authentication (client)
+│   │   │   ├── adminAuth.ts          # JWT authentication (admin/Seekers)
+│   │   │   ├── rateLimiter.ts        # Rate limiting
+│   │   │   ├── errorHandler.ts       # Global error handler
+│   │   │   └── validation.ts         # Request validation
+│   │   │
+│   │   ├── routes/
+│   │   │   ├── index.ts              # Route aggregator
+│   │   │   ├── auth.routes.ts        # Client authentication
+│   │   │   ├── admin.auth.routes.ts  # Admin authentication
+│   │   │   ├── meta.routes.ts        # Meta OAuth endpoints
+│   │   │   ├── pages.routes.ts       # Facebook pages management
+│   │   │   ├── instagram.routes.ts   # Instagram accounts
+│   │   │   ├── knowledgeBase.routes.ts # Knowledge base CRUD
+│   │   │   ├── workflowRequests.routes.ts # Workflow request system
+│   │   │   ├── addons.routes.ts      # Add-ons/integrations
+│   │   │   ├── webhooks.routes.ts    # Meta webhook receivers
+│   │   │   ├── conversations.routes.ts # Conversation logs
+│   │   │   ├── analytics.routes.ts   # Dashboard analytics
+│   │   │   ├── notifications.routes.ts # Notifications
+│   │   │   │
+│   │   │   └── admin/                # ADMIN (Seekers) Routes
+│   │   │       ├── clients.routes.ts    # View/manage all clients
+│   │   │       ├── requests.routes.ts   # Manage workflow requests
+│   │   │       ├── webhooks.routes.ts   # Assign webhooks to clients
+│   │   │       ├── dashboard.routes.ts  # Admin dashboard
+│   │   │       └── notifications.routes.ts # Admin notifications
+│   │   │
+│   │   ├── services/
+│   │   │   ├── auth.service.ts       # User authentication logic
+│   │   │   ├── admin.service.ts      # Admin operations
+│   │   │   ├── meta.service.ts       # Meta Graph API interactions
+│   │   │   ├── token.service.ts      # Token encryption/refresh
+│   │   │   ├── knowledgeBase.service.ts # Knowledge base management
+│   │   │   ├── workflowRequest.service.ts # Workflow requests
+│   │   │   ├── webhookRouter.service.ts # Route webhooks to n8n
+│   │   │   ├── workflow.service.ts   # Webhook management
+│   │   │   ├── notification.service.ts # Real-time notifications
+│   │   │   └── analytics.service.ts  # Data aggregation
+│   │   │
+│   │   ├── workers/
+│   │   │   ├── webhookProcessor.ts   # Bull queue processor
+│   │   │   ├── tokenRefresher.ts     # Automatic token refresh
+│   │   │   └── notificationWorker.ts # Notification dispatcher
+│   │   │
+│   │   ├── utils/
+│   │   │   ├── encryption.ts         # Encrypt/decrypt tokens
+│   │   │   ├── validators.ts         # Input validation helpers
+│   │   │   ├── helpers.ts            # Utility functions
+│   │   │   └── constants.ts          # App-wide constants
+│   │   │
+│   │   ├── types/
+│   │   │   ├── index.ts              # Type exports
+│   │   │   ├── auth.types.ts
+│   │   │   ├── meta.types.ts
+│   │   │   ├── workflow.types.ts
+│   │   │   ├── knowledgeBase.types.ts
+│   │   │   └── admin.types.ts
+│   │   │
+│   │   ├── app.ts                    # Express app setup
+│   │   └── server.ts                 # Server entry point
+│   │
+│   ├── migrations/
+│   │   └── 001_initial_schema.sql    # Complete database schema
+│   │
+│   ├── .env.example
+│   ├── .dockerignore
+│   ├── Dockerfile
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── README.md
+│
+├── docker-compose.yml                # Local development setup
+└── .gitignore
+```
+
+---
+
+## DATABASE SCHEMA
+```sql
+-- migrations/001_initial_schema.sql
+
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- =====================================================
+-- ADMIN USERS (Seekers Team)
+-- =====================================================
+CREATE TABLE admin_users (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  full_name VARCHAR(255) NOT NULL,
+  role VARCHAR(50) DEFAULT 'admin', -- superadmin, admin, support
+  phone VARCHAR(50),
+  is_active BOOLEAN DEFAULT true,
+  last_login TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Users table (client organization administrators)
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  full_name VARCHAR(255),
+  phone VARCHAR(50),
+  email_verified BOOLEAN DEFAULT false,
+  verification_token VARCHAR(255),
+  reset_password_token VARCHAR(255),
+  reset_password_expires TIMESTAMP,
+  last_login TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Organizations (tenants/clients)
+CREATE TABLE organizations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(255) NOT NULL,
+  slug VARCHAR(100) UNIQUE,
+  owner_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  
+  -- Organization details
+  industry VARCHAR(100), -- education, ecommerce, healthcare, etc.
+  website VARCHAR(255),
+  logo_url TEXT,
+  
+  -- Subscription details
+  subscription_tier VARCHAR(50) DEFAULT 'trial', -- trial, starter, professional, enterprise
+  subscription_status VARCHAR(50) DEFAULT 'pending', -- pending, active, suspended, cancelled
+  subscription_starts_at TIMESTAMP DEFAULT NOW(),
+  subscription_ends_at TIMESTAMP,
+  
+  -- Onboarding status
+  onboarding_completed BOOLEAN DEFAULT false,
+  meta_connected BOOLEAN DEFAULT false,
+  knowledge_base_added BOOLEAN DEFAULT false,
+  workflow_requested BOOLEAN DEFAULT false,
+  
+  -- Contact info
+  contact_email VARCHAR(255),
+  contact_phone VARCHAR(50),
+  address TEXT,
+  
+  -- Configuration
+  settings JSONB DEFAULT '{}',
+  
+  -- Assigned by Seekers
+  assigned_admin_id UUID REFERENCES admin_users(id),
+  notes TEXT, -- Internal notes from Seekers team
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- =====================================================
+-- META INTEGRATION TABLES
+-- =====================================================
+
+-- Meta access tokens (user-level tokens from OAuth)
+CREATE TABLE meta_tokens (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  
+  -- Token data (encrypted)
+  access_token TEXT NOT NULL,
+  token_type VARCHAR(50) DEFAULT 'user_token',
+  expires_at TIMESTAMP,
+  
+  -- Granted permissions
+  scopes TEXT[],
+  
+  -- Meta user info
+  meta_user_id VARCHAR(255),
+  meta_user_name VARCHAR(255),
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Facebook Pages
+CREATE TABLE facebook_pages (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  
+  -- Meta identifiers
+  page_id VARCHAR(255) UNIQUE NOT NULL,
+  page_name VARCHAR(255),
+  page_category VARCHAR(255),
+  
+  -- Page access token (encrypted)
+  page_access_token TEXT NOT NULL,
+  token_expires_at TIMESTAMP,
+  
+  -- Status
+  is_active BOOLEAN DEFAULT true,
+  webhook_subscribed BOOLEAN DEFAULT false,
+  
+  -- Metadata
+  page_picture_url TEXT,
+  page_link TEXT,
+  followers_count INTEGER,
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Instagram Business Accounts
+CREATE TABLE instagram_accounts (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  facebook_page_id UUID REFERENCES facebook_pages(id) ON DELETE CASCADE,
+  
+  -- Meta identifiers
+  instagram_business_account_id VARCHAR(255) UNIQUE NOT NULL,
+  username VARCHAR(255),
+  
+  -- Status
+  is_active BOOLEAN DEFAULT true,
+  webhook_subscribed BOOLEAN DEFAULT false,
+  
+  -- Metadata
+  profile_picture_url TEXT,
+  followers_count INTEGER,
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- =====================================================
+-- KNOWLEDGE BASE TABLES
+-- =====================================================
+
+-- Knowledge Bases (multiple per organization)
+CREATE TABLE knowledge_bases (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  
+  -- Knowledge base details
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  type VARCHAR(50) NOT NULL, -- 'chatbot' or 'comments'
+  
+  -- Content
+  content TEXT NOT NULL, -- The actual knowledge base text/data
+  content_format VARCHAR(50) DEFAULT 'text', -- text, markdown, json
+  
+  -- Versioning
+  version INTEGER DEFAULT 1,
+  is_active BOOLEAN DEFAULT true,
+  
+  -- File attachments (optional)
+  attachments JSONB DEFAULT '[]', -- [{filename, url, type, size}]
+  
+  -- Metadata
+  word_count INTEGER,
+  last_updated_by UUID REFERENCES users(id),
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Knowledge Base History (for version tracking)
+CREATE TABLE knowledge_base_history (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  knowledge_base_id UUID REFERENCES knowledge_bases(id) ON DELETE CASCADE,
+  
+  -- Previous content
+  content TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  
+  -- Who made the change
+  changed_by UUID REFERENCES users(id),
+  change_reason TEXT,
+  
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- =====================================================
+-- WORKFLOW REQUEST SYSTEM
+-- =====================================================
+
+-- Workflow Requests (clients request, Seekers fulfills)
+CREATE TABLE workflow_requests (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  
+  -- Request details
+  request_type VARCHAR(50) NOT NULL, -- 'chatbot', 'comments', 'both'
+  title VARCHAR(255) NOT NULL,
+  description TEXT NOT NULL,
+  
+  -- Platforms
+  platforms JSONB DEFAULT '[]', -- ['facebook_messenger', 'instagram_dm', 'facebook_comments', 'instagram_comments']
+  
+  -- Status tracking
+  status VARCHAR(50) DEFAULT 'pending', -- pending, in_review, in_progress, completed, rejected
+  priority VARCHAR(20) DEFAULT 'normal', -- low, normal, high, urgent
+  
+  -- Seekers assignment
+  assigned_to UUID REFERENCES admin_users(id),
+  reviewed_by UUID REFERENCES admin_users(id),
+  reviewed_at TIMESTAMP,
+  
+  -- Admin notes
+  admin_notes TEXT,
+  rejection_reason TEXT,
+  
+  -- Estimated delivery
+  estimated_completion DATE,
+  completed_at TIMESTAMP,
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Add-on Requests (Google Sheets, WhatsApp notifications, etc.)
+CREATE TABLE addon_requests (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  workflow_request_id UUID REFERENCES workflow_requests(id) ON DELETE SET NULL,
+  
+  -- Add-on details
+  addon_type VARCHAR(100) NOT NULL, -- google_sheets, whatsapp_notification, email_notification, crm_integration, etc.
+  addon_name VARCHAR(255) NOT NULL,
+  description TEXT,
+  
+  -- Configuration provided by client
+  configuration JSONB DEFAULT '{}', -- e.g., {sheet_id, whatsapp_group_id, email_recipients}
+  
+  -- Status
+  status VARCHAR(50) DEFAULT 'pending', -- pending, configured, active, disabled
+  
+  -- Admin setup
+  setup_notes TEXT,
+  configured_by UUID REFERENCES admin_users(id),
+  configured_at TIMESTAMP,
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- =====================================================
+-- N8N WORKFLOWS (Managed by Seekers)
+-- =====================================================
+
+-- n8n Workflows (created by Seekers, not clients)
+CREATE TABLE n8n_workflows (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  workflow_request_id UUID REFERENCES workflow_requests(id) ON DELETE SET NULL,
+  
+  -- Workflow identification
+  workflow_name VARCHAR(255) NOT NULL,
+  workflow_type VARCHAR(50) NOT NULL, -- facebook_comments, instagram_comments, messenger, instagram_dm
+  
+  -- n8n connection details (set by Seekers)
+  n8n_webhook_url TEXT NOT NULL,
+  n8n_workflow_id VARCHAR(255),
+  n8n_server_url TEXT DEFAULT 'https://n8n.seekersai.org',
+  
+  -- Associated knowledge base
+  knowledge_base_id UUID REFERENCES knowledge_bases(id) ON DELETE SET NULL,
+  
+  -- Status
+  is_active BOOLEAN DEFAULT true,
+  is_production BOOLEAN DEFAULT false, -- false = testing, true = live
+  last_triggered_at TIMESTAMP,
+  
+  -- Configuration
+  custom_config JSONB DEFAULT '{}',
+  
+  -- Created by Seekers admin
+  created_by UUID REFERENCES admin_users(id),
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Link workflows to specific pages/accounts
+CREATE TABLE workflow_connections (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workflow_id UUID REFERENCES n8n_workflows(id) ON DELETE CASCADE,
+  
+  -- Can connect to either Facebook page OR Instagram account
+  facebook_page_id UUID REFERENCES facebook_pages(id) ON DELETE CASCADE,
+  instagram_account_id UUID REFERENCES instagram_accounts(id) ON DELETE CASCADE,
+  
+  is_active BOOLEAN DEFAULT true,
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  
+  -- Ensure one workflow connects to one asset
+  CONSTRAINT unique_workflow_page UNIQUE(workflow_id, facebook_page_id),
+  CONSTRAINT unique_workflow_instagram UNIQUE(workflow_id, instagram_account_id),
+  
+  -- Ensure either page OR instagram, not both
+  CONSTRAINT check_one_platform CHECK (
+    (facebook_page_id IS NOT NULL AND instagram_account_id IS NULL) OR
+    (facebook_page_id IS NULL AND instagram_account_id IS NOT NULL)
+  )
+);
+
+-- =====================================================
+-- NOTIFICATIONS SYSTEM
+-- =====================================================
+
+-- Admin Notifications (for Seekers team)
+CREATE TABLE admin_notifications (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  
+  -- Notification details
+  type VARCHAR(100) NOT NULL, -- new_client, meta_connected, workflow_requested, addon_requested, etc.
+  title VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  
+  -- Related entities
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  workflow_request_id UUID REFERENCES workflow_requests(id) ON DELETE CASCADE,
+  addon_request_id UUID REFERENCES addon_requests(id) ON DELETE CASCADE,
+  
+  -- Target admin (null = all admins)
+  target_admin_id UUID REFERENCES admin_users(id),
+  
+  -- Status
+  is_read BOOLEAN DEFAULT false,
+  read_by UUID REFERENCES admin_users(id),
+  read_at TIMESTAMP,
+  
+  -- Priority
+  priority VARCHAR(20) DEFAULT 'normal', -- low, normal, high, urgent
+  
+  -- Metadata
+  metadata JSONB DEFAULT '{}',
+  
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Client Notifications
+CREATE TABLE client_notifications (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  
+  -- Notification details
+  type VARCHAR(100) NOT NULL, -- workflow_approved, workflow_completed, addon_configured, etc.
+  title VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  
+  -- Status
+  is_read BOOLEAN DEFAULT false,
+  read_at TIMESTAMP,
+  
+  -- Metadata
+  metadata JSONB DEFAULT '{}',
+  
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- =====================================================
+-- PRICING & BILLING
+-- =====================================================
+
+-- Pricing models (flexible per client)
+CREATE TABLE pricing_models (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  
+  -- Pricing structure
+  pricing_type VARCHAR(50) NOT NULL, -- custom, standard, enterprise
+  setup_fee DECIMAL(10,2) DEFAULT 0,
+  monthly_fee DECIMAL(10,2) DEFAULT 0,
+  currency VARCHAR(3) DEFAULT 'EGP',
+  
+  -- Usage limits
+  max_conversations_per_month INTEGER,
+  max_connected_pages INTEGER,
+  max_workflows INTEGER,
+  max_knowledge_bases INTEGER,
+  
+  -- Features enabled
+  features_enabled JSONB DEFAULT '{}',
+  
+  -- Contract details
+  contract_start_date DATE,
+  contract_end_date DATE,
+  payment_status VARCHAR(50) DEFAULT 'pending',
+  billing_cycle VARCHAR(50) DEFAULT 'monthly',
+  
+  -- Notes
+  notes TEXT,
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- =====================================================
+-- LOGGING & ANALYTICS
+-- =====================================================
+
+-- Webhook events log
+CREATE TABLE webhook_events (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  
+  -- Event details
+  event_type VARCHAR(100) NOT NULL,
+  platform VARCHAR(50) NOT NULL, -- facebook, instagram
+  platform_id VARCHAR(255), -- page_id or instagram_account_id
+  
+  -- Webhook payload
+  payload JSONB NOT NULL,
+  
+  -- Processing status
+  processed BOOLEAN DEFAULT false,
+  routed_to_n8n BOOLEAN DEFAULT false,
+  n8n_workflow_id UUID REFERENCES n8n_workflows(id),
+  n8n_response_status INTEGER,
+  
+  -- Error tracking
+  error_message TEXT,
+  retry_count INTEGER DEFAULT 0,
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  processed_at TIMESTAMP
+);
+
+-- Conversations log (for analytics)
+CREATE TABLE conversations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  
+  -- Platform details
+  platform VARCHAR(50) NOT NULL, -- facebook, instagram
+  conversation_type VARCHAR(50) NOT NULL, -- comment, message, reply
+  
+  -- Meta identifiers
+  platform_conversation_id VARCHAR(255),
+  platform_post_id VARCHAR(255),
+  
+  -- Sender information
+  sender_id VARCHAR(255),
+  sender_name VARCHAR(255),
+  sender_profile_pic TEXT,
+  
+  -- Message content
+  message_text TEXT,
+  message_type VARCHAR(50),
+  
+  -- Bot response
+  bot_responded BOOLEAN DEFAULT false,
+  bot_response_text TEXT,
+  response_time_ms INTEGER,
+  
+  -- Workflow that handled it
+  handled_by_workflow_id UUID REFERENCES n8n_workflows(id),
+  
+  -- Lead capture
+  is_lead BOOLEAN DEFAULT false,
+  lead_data JSONB DEFAULT '{}',
+  
+  -- Metadata
+  metadata JSONB DEFAULT '{}',
+  
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Activity logs (audit trail)
+CREATE TABLE activity_logs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  
+  -- Who performed the action
+  user_type VARCHAR(20) NOT NULL, -- 'client' or 'admin'
+  user_id UUID,
+  admin_id UUID,
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  
+  -- Action details
+  action VARCHAR(100) NOT NULL, -- login, page_connected, kb_updated, workflow_assigned, etc.
+  resource_type VARCHAR(50), -- page, workflow, knowledge_base, etc.
+  resource_id UUID,
+  
+  -- Details
+  details JSONB DEFAULT '{}',
+  
+  -- Request info
+  ip_address INET,
+  user_agent TEXT,
+  
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Webhook routing log (for debugging)
+CREATE TABLE webhook_routes_log (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  asset_id VARCHAR(255) NOT NULL, -- page_id or instagram_account_id
+  platform VARCHAR(50) NOT NULL,
+  n8n_webhook_url TEXT,
+  status VARCHAR(50) NOT NULL, -- success, failed, timeout
+  response_time_ms INTEGER,
+  error_message TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- =====================================================
+-- INDEXES
+-- =====================================================
+CREATE INDEX idx_admin_users_email ON admin_users(email);
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_organizations_owner ON organizations(owner_id);
+CREATE INDEX idx_organizations_slug ON organizations(slug);
+CREATE INDEX idx_organizations_status ON organizations(subscription_status);
+CREATE INDEX idx_meta_tokens_org ON meta_tokens(organization_id);
+CREATE INDEX idx_facebook_pages_org ON facebook_pages(organization_id);
+CREATE INDEX idx_facebook_pages_page_id ON facebook_pages(page_id);
+CREATE INDEX idx_instagram_accounts_org ON instagram_accounts(organization_id);
+CREATE INDEX idx_instagram_accounts_ig_id ON instagram_accounts(instagram_business_account_id);
+CREATE INDEX idx_knowledge_bases_org ON knowledge_bases(organization_id);
+CREATE INDEX idx_knowledge_bases_type ON knowledge_bases(type);
+CREATE INDEX idx_workflow_requests_org ON workflow_requests(organization_id);
+CREATE INDEX idx_workflow_requests_status ON workflow_requests(status);
+CREATE INDEX idx_addon_requests_org ON addon_requests(organization_id);
+CREATE INDEX idx_n8n_workflows_org ON n8n_workflows(organization_id);
+CREATE INDEX idx_workflow_connections_workflow ON workflow_connections(workflow_id);
+CREATE INDEX idx_admin_notifications_unread ON admin_notifications(is_read, created_at DESC);
+CREATE INDEX idx_client_notifications_user ON client_notifications(user_id, is_read);
+CREATE INDEX idx_webhook_events_processed ON webhook_events(processed, created_at);
+CREATE INDEX idx_webhook_events_org ON webhook_events(organization_id);
+CREATE INDEX idx_conversations_org ON conversations(organization_id);
+CREATE INDEX idx_conversations_created ON conversations(created_at DESC);
+CREATE INDEX idx_activity_logs_org ON activity_logs(organization_id);
+CREATE INDEX idx_activity_logs_created ON activity_logs(created_at DESC);
+
+-- =====================================================
+-- TRIGGERS
+-- =====================================================
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Apply updated_at trigger to all relevant tables
+CREATE TRIGGER update_admin_users_updated_at BEFORE UPDATE ON admin_users
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_organizations_updated_at BEFORE UPDATE ON organizations
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_meta_tokens_updated_at BEFORE UPDATE ON meta_tokens
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_facebook_pages_updated_at BEFORE UPDATE ON facebook_pages
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_instagram_accounts_updated_at BEFORE UPDATE ON instagram_accounts
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_knowledge_bases_updated_at BEFORE UPDATE ON knowledge_bases
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_workflow_requests_updated_at BEFORE UPDATE ON workflow_requests
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_addon_requests_updated_at BEFORE UPDATE ON addon_requests
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_n8n_workflows_updated_at BEFORE UPDATE ON n8n_workflows
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_pricing_models_updated_at BEFORE UPDATE ON pricing_models
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- =====================================================
+-- SEED DATA
+-- =====================================================
+-- Insert default super admin
+INSERT INTO admin_users (email, password_hash, full_name, role, phone) VALUES
+('admin@seekersai.org', '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewYpR1IOhLlHp.qq', 'Seekers Admin', 'superadmin', '01044332566');
+-- Default password: SeekersAdmin@2024 (change immediately in production)
+```
+  
+  -- Metadata
+  page_picture_url TEXT,
+  page_link TEXT,
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Instagram Business Accounts
+CREATE TABLE instagram_accounts (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  facebook_page_id UUID REFERENCES facebook_pages(id) ON DELETE CASCADE,
+  
+  -- Meta identifiers
+  instagram_business_account_id VARCHAR(255) UNIQUE NOT NULL,
+  username VARCHAR(255),
+  
+  -- Status
+  is_active BOOLEAN DEFAULT true,
+  webhook_subscribed BOOLEAN DEFAULT false,
+  
+  -- Metadata
+  profile_picture_url TEXT,
+  followers_count INTEGER,
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- n8n Workflows (each client can have multiple workflows)
+CREATE TABLE n8n_workflows (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  
+  -- Workflow identification
+  workflow_name VARCHAR(255) NOT NULL,
+  workflow_type VARCHAR(50) NOT NULL, -- facebook_comments, instagram_comments, messenger, instagram_dm
+  
+  -- n8n connection details
+  n8n_webhook_url TEXT NOT NULL,
+  n8n_workflow_id VARCHAR(255),
+  n8n_server_url TEXT,
+  
+  -- Status
+  is_active BOOLEAN DEFAULT true,
+  last_triggered_at TIMESTAMP,
+  
+  -- Configuration (flexible per client)
+  custom_config JSONB DEFAULT '{}',
+  
+  -- Testing
+  test_mode BOOLEAN DEFAULT false,
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Link workflows to specific pages/accounts
+CREATE TABLE workflow_connections (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workflow_id UUID REFERENCES n8n_workflows(id) ON DELETE CASCADE,
+  
+  -- Can connect to either Facebook page OR Instagram account
+  facebook_page_id UUID REFERENCES facebook_pages(id) ON DELETE CASCADE,
+  instagram_account_id UUID REFERENCES instagram_accounts(id) ON DELETE CASCADE,
+  
+  is_active BOOLEAN DEFAULT true,
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  
+  -- Ensure one workflow connects to one asset
+  CONSTRAINT unique_workflow_page UNIQUE(workflow_id, facebook_page_id),
+  CONSTRAINT unique_workflow_instagram UNIQUE(workflow_id, instagram_account_id),
+  
+  -- Ensure either page OR instagram, not both
+  CONSTRAINT check_one_platform CHECK (
+    (facebook_page_id IS NOT NULL AND instagram_account_id IS NULL) OR
+    (facebook_page_id IS NULL AND instagram_account_id IS NOT NULL)
+  )
+);
+
+-- Pricing models (flexible per client)
+CREATE TABLE pricing_models (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  
+  -- Pricing structure
+  pricing_type VARCHAR(50) NOT NULL, -- custom, standard, enterprise
+  setup_fee DECIMAL(10,2) DEFAULT 0,
+  monthly_fee DECIMAL(10,2) DEFAULT 0,
+  currency VARCHAR(3) DEFAULT 'EGP',
+  
+  -- Usage limits
+  max_conversations_per_month INTEGER,
+  max_connected_pages INTEGER,
+  max_workflows INTEGER,
+  
+  -- Features enabled
+  features_enabled JSONB DEFAULT '{}',
+  
+  -- Contract details
+  contract_start_date DATE,
+  contract_end_date DATE,
+  payment_status VARCHAR(50) DEFAULT 'pending',
+  billing_cycle VARCHAR(50) DEFAULT 'monthly',
+  
+  -- Notes
+  notes TEXT,
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Webhook events log
+CREATE TABLE webhook_events (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  
+  -- Event details
+  event_type VARCHAR(100) NOT NULL,
+  platform VARCHAR(50) NOT NULL, -- facebook, instagram
+  platform_id VARCHAR(255), -- page_id or instagram_account_id
+  
+  -- Webhook payload
+  payload JSONB NOT NULL,
+  
+  -- Processing status
+  processed BOOLEAN DEFAULT false,
+  routed_to_n8n BOOLEAN DEFAULT false,
+  n8n_workflow_id UUID REFERENCES n8n_workflows(id),
+  n8n_response_status INTEGER,
+  
+  -- Error tracking
+  error_message TEXT,
+  retry_count INTEGER DEFAULT 0,
+  
+  created_at TIMESTAMP DEFAULT NOW(),
+  processed_at TIMESTAMP
+);
+
+-- Conversations log (for analytics)
+CREATE TABLE conversations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  
+  -- Platform details
+  platform VARCHAR(50) NOT NULL, -- facebook, instagram
+  conversation_type VARCHAR(50) NOT NULL, -- comment, message, reply
+  
+  -- Meta identifiers
+  platform_conversation_id VARCHAR(255),
+  platform_post_id VARCHAR(255),
+  
+  -- Sender information
+  sender_id VARCHAR(255),
+  sender_name VARCHAR(255),
+  
+  -- Message content
+  message_text TEXT,
+  message_type VARCHAR(50),
+  
+  -- Bot response (if any)
+  bot_responded BOOLEAN DEFAULT false,
+  bot_response_text TEXT,
+  response_time_ms INTEGER,
+  
+  -- Workflow that handled it
+  handled_by_workflow_id UUID REFERENCES n8n_workflows(id),
+  
+  -- Metadata
+  metadata JSONB DEFAULT '{}',
+  
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Activity logs (audit trail)
+CREATE TABLE activity_logs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  
+  -- Action details
+  action VARCHAR(100) NOT NULL, -- login, page_connected, workflow_added, etc.
+  resource_type VARCHAR(50), -- page, workflow, settings, etc.
+  resource_id UUID,
+  
+  -- Details
+  details JSONB DEFAULT '{}',
+  
+  -- Request info
+  ip_address INET,
+  user_agent TEXT,
+  
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Webhook routing log (for debugging)
+CREATE TABLE webhook_routes_log (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  asset_id VARCHAR(255) NOT NULL, -- page_id or instagram_account_id
+  platform VARCHAR(50) NOT NULL,
+  n8n_webhook_url TEXT,
+  status VARCHAR(50) NOT NULL, -- success, failed, timeout
+  error_message TEXT,
+  response_time_ms INTEGER,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Indexes for performance
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_institutions_owner ON institutions(owner_id);
+CREATE INDEX idx_meta_tokens_institution ON meta_tokens(institution_id);
+CREATE INDEX idx_facebook_pages_institution ON facebook_pages(institution_id);
+CREATE INDEX idx_facebook_pages_page_id ON facebook_pages(page_id);
+CREATE INDEX idx_instagram_accounts_institution ON instagram_accounts(institution_id);
+CREATE INDEX idx_instagram_accounts_ig_id ON instagram_accounts(instagram_business_account_id);
+CREATE INDEX idx_n8n_workflows_institution ON n8n_workflows(institution_id);
+CREATE INDEX idx_workflow_connections_workflow ON workflow_connections(workflow_id);
+CREATE INDEX idx_webhook_events_processed ON webhook_events(processed, created_at);
+CREATE INDEX idx_webhook_events_institution ON webhook_events(institution_id);
+CREATE INDEX idx_conversations_institution ON conversations(institution_id);
+CREATE INDEX idx_conversations_created ON conversations(created_at DESC);
+CREATE INDEX idx_activity_logs_institution ON activity_logs(institution_id);
+CREATE INDEX idx_activity_logs_created ON activity_logs(created_at DESC);
+
+-- Functions for automatic updated_at
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Apply updated_at trigger to relevant tables
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_institutions_updated_at BEFORE UPDATE ON institutions
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_meta_tokens_updated_at BEFORE UPDATE ON meta_tokens
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_facebook_pages_updated_at BEFORE UPDATE ON facebook_pages
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_instagram_accounts_updated_at BEFORE UPDATE ON instagram_accounts
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_n8n_workflows_updated_at BEFORE UPDATE ON n8n_workflows
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+```
+
+---
+
+## ENVIRONMENT VARIABLES
+```bash
+# .env.example
+
+# ============================================
+# Application Configuration
+# ============================================
+NODE_ENV=development
+PORT=3001
+FRONTEND_URL=http://localhost:3000
+API_BASE_URL=http://localhost:3001
+
+# ============================================
+# Database Configuration
+# ============================================
+DATABASE_URL=postgresql://postgres:password@localhost:5432/academixai
+DATABASE_POOL_MIN=2
+DATABASE_POOL_MAX=10
+
+# ============================================
+# Redis Configuration
+# ============================================
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_DB=0
+
+# ============================================
+# Meta/Facebook App Configuration
+# ============================================
+META_APP_ID=your_meta_app_id
+META_APP_SECRET=your_meta_app_secret
+META_REDIRECT_URI=http://localhost:3001/api/meta/callback
+META_WEBHOOK_VERIFY_TOKEN=your_random_verify_token_here
+META_API_VERSION=v18.0
+
+# Required Meta Scopes (for reference)
+# pages_show_list,pages_read_engagement,pages_manage_metadata,pages_manage_engagement,
+# instagram_basic,instagram_manage_messages,instagram_manage_comments,public_profile,email
+
+# ============================================
+# JWT Configuration
+# ============================================
+JWT_SECRET=your_super_secret_jwt_key_min_32_chars
+JWT_EXPIRES_IN=7d
+JWT_REFRESH_EXPIRES_IN=30d
+
+# ============================================
+# Encryption (for storing Meta access tokens)
+# ============================================
+# Generate with: openssl rand -hex 32
+ENCRYPTION_KEY=your_64_character_hex_encryption_key_here
+
+# ============================================
+# n8n Configuration
+# ============================================
+N8N_DEFAULT_SERVER_URL=https://n8n.seekersai.org
+N8N_API_KEY=your_n8n_api_key_if_needed
+N8N_WEBHOOK_BASE_URL=https://n8n.seekersai.org/webhook
+
+# ============================================
+# OpenAI (Optional - for testing)
+# ============================================
+OPENAI_API_KEY=sk-your_openai_key
+
+# ============================================
+# Email Configuration (Optional)
+# ============================================
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_email@gmail.com
+SMTP_PASS=your_app_password
+
+# ============================================
+# Monitoring & Logging
+# ============================================
+LOG_LEVEL=info
+SENTRY_DSN=
+
+# ============================================
+# Security
+# ============================================
+CORS_ORIGIN=http://localhost:3000
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+
+# ============================================
+# Seekers AI Branding
+# ============================================
+COMPANY_NAME=Seekers AI
+PRODUCT_NAME=AcademiX AI
+SUPPORT_EMAIL=support@seekersai.org
+CONTACT_PHONE=01044332566
+```
+
+---
+
+## CORE API ENDPOINTS SPECIFICATION
+
+### Authentication Routes (`/api/auth`)
+```
+POST   /api/auth/register
+  Body: { email, password, fullName, institutionName, phone? }
+  Response: { user, institution, token }
+  Description: Register new institution with admin user
+
+POST   /api/auth/login
+  Body: { email, password }
+  Response: { user, institution, token, refreshToken }
+  Description: Login existing user
+
+POST   /api/auth/logout
+  Headers: { Authorization: Bearer <token> }
+  Response: { success: true }
+  Description: Invalidate current token
+
+POST   /api/auth/refresh
+  Body: { refreshToken }
+  Response: { token, refreshToken }
+  Description: Get new access token
+
+GET    /api/auth/verify-email/:token
+  Params: { token }
+  Response: { success: true }
+  Description: Verify email address
+
+POST   /api/auth/forgot-password
+  Body: { email }
+  Response: { success: true, message }
+  Description: Send password reset email
+
+POST   /api/auth/reset-password
+  Body: { token, newPassword }
+  Response: { success: true }
+  Description: Reset password with token
+
+GET    /api/auth/me
+  Headers: { Authorization: Bearer <token> }
+  Response: { user, institution }
+  Description: Get current user info
+```
+
+### Meta OAuth Routes (`/api/meta`)
+```
+GET    /api/meta/auth/init
+  Headers: { Authorization: Bearer <token> }
+  Response: { authUrl, state }
+  Description: Generate Meta OAuth URL and CSRF state
+
+GET    /api/meta/auth/callback
+  Query: { code, state }
+  Response: Redirect to frontend with token
+  Description: Handle Meta OAuth callback, exchange code for token
+
+POST   /api/meta/auth/disconnect
+  Headers: { Authorization: Bearer <token> }
+  Response: { success: true }
+  Description: Revoke Meta access and delete tokens
+
+GET    /api/meta/token/status
+  Headers: { Authorization: Bearer <token> }
+  Response: { isValid, expiresAt, expiresIn }
+  Description: Check Meta token validity
+
+POST   /api/meta/token/refresh
+  Headers: { Authorization: Bearer <token> }
+  Response: { success: true, newExpiresAt }
+  Description: Manually refresh Meta long-lived token
+```
+
+### Facebook Pages Routes (`/api/pages`)
+```
+GET    /api/pages
+  Headers: { Authorization: Bearer <token> }
+  Response: [{ id, pageId, pageName, isActive, webhookSubscribed, instagramAccount, createdAt }]
+  Description: List all connected Facebook pages for institution
+
+POST   /api/pages/connect
+  Headers: { Authorization: Bearer <token> }
+  Body: { pageId, pageName, pageAccessToken }
+  Response: { page, subscriptionSuccess }
+  Description: Connect a new Facebook page and subscribe webhooks
+
+DELETE /api/pages/:pageId
+  Headers: { Authorization: Bearer <token> }
+  Params: { pageId }
+  Response: { success: true }
+  Description: Disconnect Facebook page and unsubscribe webhooks
+
+PATCH  /api/pages/:pageId/toggle
+  Headers: { Authorization: Bearer <token> }
+  Params: { pageId }
+  Body: { isActive }
+  Response: { page }
+  Description: Enable/disable bot for specific page
+
+GET    /api/pages/:pageId/instagram
+  Headers: { Authorization: Bearer <token> }
+  Params: { pageId }
+  Response: { instagramAccount or null }
+  Description: Get linked Instagram account for page
+```
+
+### Instagram Routes (`/api/instagram`)
+```
+GET    /api/instagram
+  Headers: { Authorization: Bearer <token> }
+  Response: [{ id, instagramBusinessAccountId, username, isActive, linkedPage }]
+  Description: List all connected Instagram accounts
+
+POST   /api/instagram/connect
+  Headers: { Authorization: Bearer <token> }
+  Body: { facebookPageId, instagramBusinessAccountId, username }
+  Response: { instagramAccount }
+  Description: Connect Instagram account to Facebook page
+
+DELETE /api/instagram/:instagramId
+  Headers: { Authorization: Bearer <token> }
+  Params: { instagramId }
+  Response: { success: true }
+  Description: Disconnect Instagram account
+
+PATCH  /api/instagram/:instagramId/toggle
+  Headers: { Authorization: Bearer <token> }
+  Params: { instagramId }
+  Body: { isActive }
+  Response: { instagramAccount }
+  Description: Enable/disable bot for Instagram account
+```
+
+### n8n Workflows Routes (`/api/workflows`)
+```
+GET    /api/workflows
+  Headers: { Authorization: Bearer <token> }
+  Response: [{ id, workflowName, workflowType, n8nWebhookUrl, isActive, lastTriggeredAt, connections }]
+  Description: List all n8n workflows for institution
+
+POST   /api/workflows
+  Headers: { Authorization: Bearer <token> }
+  Body: { workflowName, workflowType, n8nWebhookUrl, customConfig? }
+  Response: { workflow }
+  Description: Add new n8n workflow
+
+PATCH  /api/workflows/:workflowId
+  Headers: { Authorization: Bearer <token> }
+  Params: { workflowId }
+  Body: { workflowName?, n8nWebhookUrl?, isActive?, customConfig? }
+  Response: { workflow }
+  Description: Update workflow configuration
+
+DELETE /api/workflows/:workflowId
+  Headers: { Authorization: Bearer <token> }
+  Params: { workflowId }
+  Response: { success: true }
+  Description: Delete workflow
+
+POST   /api/workflows/:workflowId/test
+  Headers: { Authorization: Bearer <token> }
+  Params: { workflowId }
+  Body: { testPayload? }
+  Response: { success, responseStatus, responseData }
+  Description: Send test webhook to n8n workflow
+
+POST   /api/workflows/:workflowId/connect
+  Headers: { Authorization: Bearer <token> }
+  Params: { workflowId }
+  Body: { facebookPageId? or instagramAccountId? }
+  Response: { connection }
+  Description: Connect workflow to specific page or Instagram account
+
+DELETE /api/workflows/:workflowId/connections/:connectionId
+  Headers: { Authorization: Bearer <token> }
+  Params: { workflowId, connectionId }
+  Response: { success: true }
+  Description: Disconnect workflow from page/Instagram
+```
+
+### Webhook Routes (`/api/webhooks`)
+```
+GET    /api/webhooks/facebook
+  Query: { hub.mode, hub.challenge, hub.verify_token }
+  Response: hub.challenge (plain text)
+  Description: Meta webhook verification endpoint
+
+POST   /api/webhooks/facebook
+  Headers: { X-Hub-Signature-256 }
+  Body: { object, entry[] }
+  Response: { success: true }
+  Description: Receive Facebook webhooks (comments, messages)
+
+GET    /api/webhooks/instagram
+  Query: { hub.mode, hub.challenge, hub.verify_token }
+  Response: hub.challenge (plain text)
+  Description: Meta webhook verification endpoint
+
+POST   /api/webhooks/instagram
+  Headers: { X-Hub-Signature-256 }
+  Body: { object, entry[] }
+  Response: { success: true }
+  Description: Receive Instagram webhooks (comments, DMs)
+```
+
+### Conversations Routes (`/api/conversations`)
+```
+GET    /api/conversations
+  Headers: { Authorization: Bearer <token> }
+  Query: { page?, limit?, platform?, startDate?, endDate?, search? }
+  Response: { conversations[], total, page, limit }
+  Description: List conversation logs with pagination and filters
+
+GET    /api/conversations/:conversationId
+  Headers: { Authorization: Bearer <token> }
+  Params: { conversationId }
+  Response: { conversation }
+  Description: Get detailed conversation
+
+GET    /api/conversations/stats
+  Headers: { Authorization: Bearer <token> }
+  Query: { startDate?, endDate? }
+  Response: { totalConversations, byPlatform, byType, avgResponseTime }
+  Description: Get conversation statistics
+```
+
+### Analytics Routes (`/api/analytics`)
+```
+GET    /api/analytics/overview
+  Headers: { Authorization: Bearer <token> }
+  Query: { startDate?, endDate? }
+  Response: { totalConversations, todayConversations, activePages, responseRate, engagement }
+  Description: Dashboard overview statistics
+
+GET    /api/analytics/conversations-over-time
+  Headers: { Authorization: Bearer <token> }
+  Query: { startDate?, endDate?, granularity? }
+  Response: [{ date, count }]
+  Description: Time-series conversation data
+
+GET    /api/analytics/platform-breakdown
+  Headers: { Authorization: Bearer <token> }
+  Response: { facebook, instagram, messenger, dm }
+  Description: Conversations by platform
+
+GET    /api/analytics/workflow-performance
+  Headers: { Authorization: Bearer <token> }
+  Response: [{ workflowId, workflowName, triggerCount, avgResponseTime, errorRate }]
+  Description: Performance metrics per workflow
+
+GET    /api/analytics/active-hours
+  Headers: { Authorization: Bearer <token> }
+  Response: { heatmapData }
+  Description: Heatmap of conversation activity by hour/day
+```
+
+### Settings Routes (`/api/settings`)
+```
+GET    /api/settings/institution
+  Headers: { Authorization: Bearer <token> }
+  Response: { institution }
+  Description: Get institution settings
+
+PATCH  /api/settings/institution
+  Headers: { Authorization: Bearer <token> }
+  Body: { name?, contactEmail?, contactPhone?, settings? }
+  Response: { institution }
+  Description: Update institution settings
+
+GET    /api/settings/pricing
+  Headers: { Authorization: Bearer <token> }
+  Response: { pricingModel }
+  Description: Get current pricing plan
+
+GET    /api/settings/usage
+  Headers: { Authorization: Bearer <token> }
+  Response: { conversationsThisMonth, pagesConnected, workflowsActive, limits }
+  Description: Get usage statistics against limits
+```
+
+---
+
+## KEY SERVICE IMPLEMENTATIONS
+
+### 1. Meta Service (`services/meta.service.ts`)
+```typescript
+import axios from 'axios';
+import crypto from 'crypto';
+
+export class MetaService {
+  private readonly APP_ID = process.env.META_APP_ID!;
+  private readonly APP_SECRET = process.env.META_APP_SECRET!;
+  private readonly REDIRECT_URI = process.env.META_REDIRECT_URI!;
+  private readonly API_VERSION = process.env.META_API_VERSION || 'v18.0';
+  
+  private readonly REQUIRED_SCOPES = [
+    'pages_show_list',
+    'pages_read_engagement',
+    'pages_manage_metadata',
+    'pages_manage_engagement',
+    'instagram_basic',
+    'instagram_manage_messages',
+    'instagram_manage_comments',
+    'public_profile',
+    'email'
+  ];
+
+  /**
+   * Generate Meta OAuth URL with CSRF protection
+   */
+  generateAuthUrl(state: string): string {
+    const params = new URLSearchParams({
+      client_id: this.APP_ID,
+      redirect_uri: this.REDIRECT_URI,
+      state: state,
+      scope: this.REQUIRED_SCOPES.join(','),
+      response_type: 'code'
+    });
+    
+    return `https://www.facebook.com/${this.API_VERSION}/dialog/oauth?${params.toString()}`;
+  }
+
+  /**
+   * Exchange authorization code for access token
+   */
+  async exchangeCodeForToken(code: string): Promise<{
+    access_token: string;
+    token_type: string;
+    expires_in: number;
+  }> {
+    const response = await axios.get(
+      `https://graph.facebook.com/${this.API_VERSION}/oauth/access_token`,
+      {
+        params: {
+          client_id: this.APP_ID,
+          client_secret: this.APP_SECRET,
+          redirect_uri: this.REDIRECT_URI,
+          code: code
+        }
+      }
+    );
+    
+    return response.data;
+  }
+
+  /**
+   * Exchange short-lived token for long-lived token (60 days)
+   */
+  async getLongLivedToken(shortToken: string): Promise<{
+    access_token: string;
+    token_type: string;
+    expires_in: number;
+  }> {
+    const response = await axios.get(
+      `https://graph.facebook.com/${this.API_VERSION}/oauth/access_token`,
+      {
+        params: {
+          grant_type: 'fb_exchange_token',
+          client_id: this.APP_ID,
+          client_secret: this.APP_SECRET,
+          fb_exchange_token: shortToken
+        }
+      }
+    );
+    
+    return response.data;
+  }
+
+  /**
+   * Get user's Facebook Pages with Instagram accounts
+   */
+  async getUserPages(userToken: string): Promise<any[]> {
+    const response = await axios.get(
+      `https://graph.facebook.com/${this.API_VERSION}/me/accounts`,
+      {
+        params: {
+          access_token: userToken,
+          fields: 'id,name,access_token,category,link,picture,instagram_business_account{id,username,profile_picture_url,followers_count}'
+        }
+      }
+    );
+    
+    return response.data.data || [];
+  }
+
+  /**
+   * Get user info from Meta
+   */
+  async getUserInfo(userToken: string): Promise<{
+    id: string;
+    name: string;
+    email: string;
+  }> {
+    const response = await axios.get(
+      `https://graph.facebook.com/${this.API_VERSION}/me`,
+      {
+        params: {
+          access_token: userToken,
+          fields: 'id,name,email'
+        }
+      }
+    );
+    
+    return response.data;
+  }
+
+  /**
+   * Subscribe page to webhooks
+   */
+  async subscribePageWebhook(pageId: string, pageToken: string): Promise<boolean> {
+    try {
+      const response = await axios.post(
+        `https://graph.facebook.com/${this.API_VERSION}/${pageId}/subscribed_apps`,
+        {},
+        {
+          params: {
+            subscribed_fields: [
+              'feed',
+              'comments',
+              'messages',
+              'message_echoes',
+              'messaging_postbacks'
+            ].join(','),
+            access_token: pageToken
+          }
+        }
+      );
+      
+      return response.data.success === true;
+    } catch (error) {
+      console.error('Failed to subscribe page webhook:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Unsubscribe page from webhooks
+   */
+  async unsubscribePageWebhook(pageId: string, pageToken: string): Promise<boolean> {
+    try {
+      const response = await axios.delete(
+        `https://graph.facebook.com/${this.API_VERSION}/${pageId}/subscribed_apps`,
+        {
+          params: {
+            access_token: pageToken
+          }
+        }
+      );
+      
+      return response.data.success === true;
+    } catch (error) {
+      console.error('Failed to unsubscribe page webhook:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Subscribe Instagram account to webhooks
+   */
+  async subscribeInstagramWebhook(igAccountId: string, pageToken: string): Promise<boolean> {
+    try {
+      const response = await axios.post(
+        `https://graph.facebook.com/${this.API_VERSION}/${igAccountId}/subscribed_apps`,
+        {},
+        {
+          params: {
+            subscribed_fields: [
+              'comments',
+              'messages',
+              'messaging_postbacks'
+            ].join(','),
+            access_token: pageToken
+          }
+        }
+      );
+      
+      return response.data.success === true;
+    } catch (error) {
+      console.error('Failed to subscribe Instagram webhook:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Validate webhook signature from Meta
+   */
+  validateWebhookSignature(signature: string, payload: string): boolean {
+    const expectedSignature = crypto
+      .createHmac('sha256', this.APP_SECRET)
+      .update(payload)
+      .digest('hex');
+    
+    return signature === `sha256=${expectedSignature}`;
+  }
+
+  /**
+   * Debug token to check validity
+   */
+  async debugToken(inputToken: string, userToken: string): Promise<any> {
+    const response = await axios.get(
+      `https://graph.facebook.com/${this.API_VERSION}/debug_token`,
+      {
+        params: {
+          input_token: inputToken,
+          access_token: userToken
+        }
+      }
+    );
+    
+    return response.data.data;
+  }
+}
+```
+
+### 2. Webhook Router Service (`services/webhookRouter.service.ts`)
+```typescript
+import axios from 'axios';
+import { Pool } from 'pg';
+import { logger } from '../config/logger';
+
+export class WebhookRouterService {
+  constructor(private db: Pool) {}
+
+  /**
+   * Route Facebook webhook to appropriate n8n workflow
+   */
+  async routeFacebookWebhook(pageId: string, event: any): Promise<void> {
+    try {
+      // Find active workflow for this page
+      const result = await this.db.query(
+        `SELECT 
+          nw.id as workflow_id,
+          nw.workflow_name,
+          nw.n8n_webhook_url,
+          nw.workflow_type,
+          fb.institution_id
+         FROM facebook_pages fb
+         JOIN workflow_connections wc ON wc.facebook_page_id = fb.id
+         JOIN n8n_workflows nw ON nw.id = wc.workflow_id
+         WHERE fb.page_id = $1 
+           AND fb.is_active = true
+           AND nw.is_active = true
+           AND wc.is_active = true
+           AND nw.workflow_type = $2
+         LIMIT 1`,
+        [pageId, this.determineWorkflowType(event)]
+      );
+
+      if (result.rows.length === 0) {
+        logger.info(`No active workflow found for Facebook page ${pageId}`);
+        return;
+      }
+
+      const workflow = result.rows[0];
+
+      // Forward webhook to n8n
+      const startTime = Date.now();
+      const response = await axios.post(
+        workflow.n8n_webhook_url,
+        {
+          platform: 'facebook',
+          pageId: pageId,
+          event: event,
+          workflowType: workflow.workflow_type,
+          timestamp: new Date().toISOString(),
+          institutionId: workflow.institution_id
+        },
+        {
+          timeout: 10000,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-AcademiX-Source': 'webhook-router'
+          }
+        }
+      );
+
+      const responseTime = Date.now() - startTime;
+
+      // Log successful routing
+      await this.logWebhookRoute(
+        pageId,
+        'facebook',
+        workflow.n8n_webhook_url,
+        'success',
+        responseTime,
+        null
+      );
+
+      // Update last triggered
+      await this.db.query(
+        `UPDATE n8n_workflows SET last_triggered_at = NOW() WHERE id = $1`,
+        [workflow.workflow_id]
+      );
+
+      logger.info(`Facebook webhook routed successfully to workflow ${workflow.workflow_name}`);
+
+    } catch (error: any) {
+      logger.error('Failed to route Facebook webhook:', error);
+      
+      await this.logWebhookRoute(
+        pageId,
+        'facebook',
+        null,
+        'failed',
+        null,
+        error.message
+      );
+    }
+  }
+
+  /**
+   * Route Instagram webhook to appropriate n8n workflow
+   */
+  async routeInstagramWebhook(instagramAccountId: string, event: any): Promise<void> {
+    try {
+      const result = await this.db.query(
+        `SELECT 
+          nw.id as workflow_id,
+          nw.workflow_name,
+          nw.n8n_webhook_url,
+          nw.workflow_type,
+          ig.institution_id
+         FROM instagram_accounts ig
+         JOIN workflow_connections wc ON wc.instagram_account_id = ig.id
+         JOIN n8n_workflows nw ON nw.id = wc.workflow_id
+         WHERE ig.instagram_business_account_id = $1 
+           AND ig.is_active = true
+           AND nw.is_active = true
+           AND wc.is_active = true
+           AND nw.workflow_type = $2
+         LIMIT 1`,
+        [instagramAccountId, this.determineWorkflowType(event)]
+      );
+
+      if (result.rows.length === 0) {
+        logger.info(`No active workflow found for Instagram account ${instagramAccountId}`);
+        return;
+      }
+
+      const workflow = result.rows[0];
+
+      const startTime = Date.now();
+      const response = await axios.post(
+        workflow.n8n_webhook_url,
+        {
+          platform: 'instagram',
+          instagramAccountId: instagramAccountId,
+          event: event,
+          workflowType: workflow.workflow_type,
+          timestamp: new Date().toISOString(),
+          institutionId: workflow.institution_id
+        },
+        {
+          timeout: 10000,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-AcademiX-Source': 'webhook-router'
+          }
+        }
+      );
+
+      const responseTime = Date.now() - startTime;
+
+      await this.logWebhookRoute(
+        instagramAccountId,
+        'instagram',
+        workflow.n8n_webhook_url,
+        'success',
+        responseTime,
+        null
+      );
+
+      await this.db.query(
+        `UPDATE n8n_workflows SET last_triggered_at = NOW() WHERE id = $1`,
+        [workflow.workflow_id]
+      );
+
+      logger.info(`Instagram webhook routed successfully to workflow ${workflow.workflow_name}`);
+
+    } catch (error: any) {
+      logger.error('Failed to route Instagram webhook:', error);
+      
+      await this.logWebhookRoute(
+        instagramAccountId,
+        'instagram',
+        null,
+        'failed',
+        null,
+        error.message
+      );
+    }
+  }
+
+  /**
+   * Determine workflow type based on event field
+   */
+  private determineWorkflowType(event: any): string {
+    const field = event.field || '';
+    
+    if (field.includes('comment')) return 'facebook_comments';
+    if (field.includes('feed')) return 'facebook_comments';
+    if (field.includes('message')) return 'messenger';
+    if (event.object === 'instagram') {
+      if (field.includes('comment')) return 'instagram_comments';
+      if (field.includes('message')) return 'instagram_dm';
+    }
+    
+    return 'unknown';
+  }
+
+  /**
+   * Log webhook routing for debugging
+   */
+  private async logWebhookRoute(
+    assetId: string,
+    platform: string,
+    webhookUrl: string | null,
+    status: string,
+    responseTime: number | null,
+    errorMessage: string | null
+  ): Promise<void> {
+    try {
+      await this.db.query(
+        `INSERT INTO webhook_routes_log 
+         (asset_id, platform, n8n_webhook_url, status, response_time_ms, error_message, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+        [assetId, platform, webhookUrl, status, responseTime, errorMessage]
+      );
+    } catch (error) {
+      logger.error('Failed to log webhook route:', error);
+    }
+  }
+
+  /**
+   * Test n8n workflow connectivity
+   */
+  async testWorkflow(workflowId: string): Promise<{
+    success: boolean;
+    responseStatus?: number;
+    responseTime?: number;
+    error?: string;
+  }> {
+    try {
+      const result = await this.db.query(
+        `SELECT n8n_webhook_url, workflow_name FROM n8n_workflows WHERE id = $1`,
+        [workflowId]
+      );
+
+      if (result.rows.length === 0) {
+        return { success: false, error: 'Workflow not found' };
+      }
+
+      const { n8n_webhook_url, workflow_name } = result.rows[0];
+
+      const startTime = Date.now();
+      const response = await axios.post(
+        n8n_webhook_url,
+        {
+          test: true,
+          message: 'Test webhook from AcademiX AI',
+          workflowName: workflow_name,
+          timestamp: new Date().toISOString()
+        },
+        {
+          timeout: 10000,
+          validateStatus: () => true // Don't throw on any status
+        }
+      );
+
+      const responseTime = Date.now() - startTime;
+
+      return {
+        success: response.status >= 200 && response.status < 300,
+        responseStatus: response.status,
+        responseTime: responseTime
+      };
+
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+}
+```
+
+### 3. Token Service (`services/token.service.ts`)
+```typescript
+import crypto from 'crypto';
+import { Pool } from 'pg';
+import { logger } from '../config/logger';
+
+const ALGORITHM = 'aes-256-gcm';
+const ENCRYPTION_KEY = Buffer.from(process.env.ENCRYPTION_KEY!, 'hex');
+
+export class TokenService {
+  constructor(private db: Pool) {}
+
+  /**
+   * Encrypt access token before storing
+   */
+  encryptToken(token: string): string {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+    
+    let encrypted = cipher.update(token, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    
+    const authTag = cipher.getAuthTag();
+    
+    // Format: iv:authTag:encrypted
+    return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
+  }
+
+  /**
+   * Decrypt access token when retrieving
+   */
+  decryptToken(encryptedData: string): string {
+    const parts = encryptedData.split(':');
+    if (parts.length !== 3) {
+      throw new Error('Invalid encrypted token format');
+    }
+
+    const iv = Buffer.from(parts[0], 'hex');
+    const authTag = Buffer.from(parts[1], 'hex');
+    const encrypted = parts[2];
+    
+    const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
+    decipher.setAuthTag(authTag);
+    
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    
+    return decrypted;
+  }
+
+  /**
+   * Store Meta user token
+   */
+  async storeUserToken(
+    institutionId: string,
+    userId: string,
+    accessToken: string,
+    expiresIn: number,
+    metaUserId: string,
+    metaUserName: string,
+    scopes: string[]
+  ): Promise<void> {
+    const encrypted = this.encryptToken(accessToken);
+    const expiresAt = new Date(Date.now() + expiresIn * 1000);
+
+    await this.db.query(
+      `INSERT INTO meta_tokens 
+       (institution_id, user_id, access_token, token_type, expires_at, scopes, meta_user_id, meta_user_name)
+       VALUES ($1, $2, $3, 'user_token', $4, $5, $6, $7)
+       ON CONFLICT (institution_id, user_id) 
+       DO UPDATE SET 
+         access_token = EXCLUDED.access_token,
+         expires_at = EXCLUDED.expires_at,
+         scopes = EXCLUDED.scopes,
+         updated_at = NOW()`,
+      [institutionId, userId, encrypted, expiresAt, scopes, metaUserId, metaUserName]
+    );
+  }
+
+  /**
+   * Store Facebook page token
+   */
+  async storePageToken(
+    institutionId: string,
+    pageId: string,
+    pageName: string,
+    pageAccessToken: string,
+    expiresIn: number | null,
+    additionalData?: any
+  ): Promise<string> {
+    const encrypted = this.encryptToken(pageAccessToken);
+    const expiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
+
+    const result = await this.db.query(
+      `INSERT INTO facebook_pages 
+       (institution_id, page_id, page_name, page_access_token, token_expires_at, page_category, page_link, page_picture_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (page_id) 
+       DO UPDATE SET 
+         page_access_token = EXCLUDED.page_access_token,
+         token_expires_at = EXCLUDED.token_expires_at,
+         page_name = EXCLUDED.page_name,
+         updated_at = NOW()
+       RETURNING id`,
+      [
+        institutionId,
+        pageId,
+        pageName,
+        encrypted,
+        expiresAt,
+        additionalData?.category || null,
+        additionalData?.link || null,
+        additionalData?.picture?.data?.url || null
+      ]
+    );
+
+    return result.rows[0].id;
+  }
+
+  /**
+   * Get decrypted page token
+   */
+  async getPageToken(pageId: string): Promise<string | null> {
+    const result = await this.db.query(
+      `SELECT page_access_token FROM facebook_pages WHERE page_id = $1`,
+      [pageId]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return this.decryptToken(result.rows[0].page_access_token);
+  }
+
+  /**
+   * Get decrypted user token
+   */
+  async getUserToken(institutionId: string): Promise<string | null> {
+    const result = await this.db.query(
+      `SELECT access_token FROM meta_tokens 
+       WHERE institution_id = $1 AND token_type = 'user_token'
+       ORDER BY created_at DESC LIMIT 1`,
+      [institutionId]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return this.decryptToken(result.rows[0].access_token);
+  }
+
+  /**
+   * Check if tokens need refresh (within 7 days of expiry)
+   */
+  async getTokensNeedingRefresh(): Promise<Array<{
+    institutionId: string;
+    tokenId: string;
+    expiresAt: Date;
+  }>> {
+    const result = await this.db.query(
+      `SELECT id as token_id, institution_id, expires_at
+       FROM meta_tokens
+       WHERE expires_at < NOW() + INTERVAL '7 days'
+         AND expires_at > NOW()
+       ORDER BY expires_at ASC`
+    );
+
+    return result.rows;
+  }
+}
+```
+
+### 4. Webhook Processor Worker (`workers/webhookProcessor.ts`)
+```typescript
+import Queue from 'bull';
+import { Pool } from 'pg';
+import { WebhookRouterService } from '../services/webhookRouter.service';
+import { logger } from '../config/logger';
+
+const webhookQueue = new Queue('webhooks', {
+  redis: {
+    host: process.env.REDIS_HOST,
+    port: parseInt(process.env.REDIS_PORT || '6379'),
+    password: process.env.REDIS_PASSWORD
+  },
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 2000
+    },
+    removeOnComplete: 100,
+    removeOnFail: 500
+  }
+});
+
+interface WebhookJob {
+  platform: 'facebook' | 'instagram';
+  eventType: string;
+  assetId: string; // page_id or instagram_account_id
+  payload: any;
+  receivedAt: string;
+}
+
+export async function initWebhookProcessor(db: Pool) {
+  const routerService = new WebhookRouterService(db);
+
+  webhookQueue.process(async (job) => {
+    const { platform, eventType, assetId, payload } = job.data as WebhookJob;
+
+    try {
+      logger.info(`Processing ${platform} webhook for ${assetId}`);
+
+      // Log webhook event
+      await db.query(
+        `INSERT INTO webhook_events 
+         (platform, event_type, platform_id, payload, processed, created_at)
+         VALUES ($1, $2, $3, $4, false, NOW())`,
+        [platform, eventType, assetId, JSON.stringify(payload)]
+      );
+
+      // Route to n8n based on platform
+      if (platform === 'facebook') {
+        await routerService.routeFacebookWebhook(assetId, payload);
+      } else if (platform === 'instagram') {
+        await routerService.routeInstagramWebhook(assetId, payload);
+      }
+
+      // Mark as processed
+      await db.query(
+        `UPDATE webhook_events 
+         SET processed = true, processed_at = NOW()
+         WHERE platform_id = $1 AND event_type = $2 
+           AND created_at > NOW() - INTERVAL '5 minutes'`,
+        [assetId, eventType]
+      );
+
+      logger.info(`Successfully processed ${platform} webhook for ${assetId}`);
+
+    } catch (error: any) {
+      logger.error(`Failed to process webhook:`, error);
+
+      // Log error
+      await db.query(
+        `UPDATE webhook_events 
+         SET error_message = $1
+         WHERE platform_id = $2 AND event_type = $3 
+           AND created_at > NOW() - INTERVAL '5 minutes'`,
+        [error.message, assetId, eventType]
+      );
+
+      throw error; // Bull will retry
+    }
+  });
+
+  // Queue event listeners
+  webhookQueue.on('completed', (job) => {
+    logger.info(`Webhook job ${job.id} completed`);
+  });
+
+  webhookQueue.on('failed', (job, err) => {
+    logger.error(`Webhook job ${job?.id} failed:`, err);
+  });
+
+  webhookQueue.on('stalled', (job) => {
+    logger.warn(`Webhook job ${job.id} stalled`);
+  });
+
+  logger.info('Webhook processor initialized');
+
+  return webhookQueue;
+}
+
+// Export function to add jobs to queue
+export async function queueWebhook(data: WebhookJob) {
+  await webhookQueue.add(data, {
+    priority: 1
+  });
+}
+```
+
+---
+
+## WEBHOOK HANDLING IMPLEMENTATION
+
+### Webhook Routes (`routes/webhooks.routes.ts`)
+```typescript
+import { Router, Request, Response } from 'express';
+import { MetaService } from '../services/meta.service';
+import { queueWebhook } from '../workers/webhookProcessor';
+import { logger } from '../config/logger';
+
+const router = Router();
+const metaService = new MetaService();
+
+// Facebook webhook verification
+router.get('/facebook', (req: Request, res: Response) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  if (mode === 'subscribe' && token === process.env.META_WEBHOOK_VERIFY_TOKEN) {
+    logger.info('Facebook webhook verified');
+    res.status(200).send(challenge);
+  } else {
+    logger.warn('Facebook webhook verification failed');
+    res.sendStatus(403);
+  }
+});
+
+// Facebook webhook receiver
+router.post('/facebook', async (req: Request, res: Response) => {
+  try {
+    const signature = req.headers['x-hub-signature-256'] as string;
+    const payload = JSON.stringify(req.body);
+
+    // Validate signature
+    if (!metaService.validateWebhookSignature(signature, payload)) {
+      logger.warn('Invalid Facebook webhook signature');
+      return res.sendStatus(403);
+    }
+
+    // Quick response to Meta
+    res.sendStatus(200);
+
+    // Process webhook asynchronously
+    const body = req.body;
+
+    if (body.object === 'page') {
+      for (const entry of body.entry) {
+        const pageId = entry.id;
+
+        // Handle different event types
+        if (entry.changes) {
+          for (const change of entry.changes) {
+            await queueWebhook({
+              platform: 'facebook',
+              eventType: change.field,
+              assetId: pageId,
+              payload: {
+                field: change.field,
+                value: change.value,
+                entry: entry
+              },
+              receivedAt: new Date().toISOString()
+            });
+          }
+        }
+
+        // Handle messaging events
+        if (entry.messaging) {
+          for (const event of entry.messaging) {
+            await queueWebhook({
+              platform: 'facebook',
+              eventType: 'messages',
+              assetId: pageId,
+              payload: {
+                field: 'messages',
+                value: event,
+                entry: entry
+              },
+              receivedAt: new Date().toISOString()
+            });
+          }
+        }
+      }
+    }
+
+  } catch (error) {
+    logger.error('Facebook webhook processing error:', error);
+    // Still return 200 to Meta to avoid retries
+    res.sendStatus(200);
+  }
+});
+
+// Instagram webhook verification
+router.get('/instagram', (req: Request, res: Response) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  if (mode === 'subscribe' && token === process.env.META_WEBHOOK_VERIFY_TOKEN) {
+    logger.info('Instagram webhook verified');
+    res.status(200).send(challenge);
+  } else {
+    logger.warn('Instagram webhook verification failed');
+    res.sendStatus(403);
+  }
+});
+
+// Instagram webhook receiver
+router.post('/instagram', async (req: Request, res: Response) => {
+  try {
+    const signature = req.headers['x-hub-signature-256'] as string;
+    const payload = JSON.stringify(req.body);
+
+    // Validate signature
+    if (!metaService.validateWebhookSignature(signature, payload)) {
+      logger.warn('Invalid Instagram webhook signature');
+      return res.sendStatus(403);
+    }
+
+    // Quick response to Meta
+    res.sendStatus(200);
+
+    // Process webhook asynchronously
+    const body = req.body;
+
+    if (body.object === 'instagram') {
+      for (const entry of body.entry) {
+        const instagramAccountId = entry.id;
+
+        if (entry.changes) {
+          for (const change of entry.changes) {
+            await queueWebhook({
+              platform: 'instagram',
+              eventType: change.field,
+              assetId: instagramAccountId,
+              payload: {
+                field: change.field,
+                value: change.value,
+                entry: entry
+              },
+              receivedAt: new Date().toISOString()
+            });
+          }
+        }
+
+        // Handle messaging events
+        if (entry.messaging) {
+          for (const event of entry.messaging) {
+            await queueWebhook({
+              platform: 'instagram',
+              eventType: 'messages',
+              assetId: instagramAccountId,
+              payload: {
+                field: 'messages',
+                value: event,
+                entry: entry
+              },
+              receivedAt: new Date().toISOString()
+            });
+          }
+        }
+      }
+    }
+
+  } catch (error) {
+    logger.error('Instagram webhook processing error:', error);
+    res.sendStatus(200);
+  }
+});
+
+export default router;
+```
+
+---
+
+## DOCKER SETUP
+
+### docker-compose.yml
+```yaml
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: academixai_postgres
+    environment:
+      POSTGRES_DB: academixai
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache & Queue
+  redis:
+    image: redis:7-alpine
+    container_name: academixai_redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: academixai_backend
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://postgres:${DB_PASSWORD:-postgres123}@postgres:5432/academixai
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/logs:/app/logs
+    command: npm run dev
+
+volumes:
+  postgres_data:
+  redis_data:
+```
+
+### Backend Dockerfile
+```dockerfile
+# backend/Dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY tsconfig.json ./
+
+# Install dependencies
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build TypeScript
+RUN npm run build
+
+# Expose port
+EXPOSE 3001
+
+# Start application
+CMD ["npm", "start"]
+```
+
+---
+
+## PACKAGE.JSON
+```json
+{
+  "name": "academixai-backend",
+  "version": "1.0.0",
+  "description": "AcademiX AI - Meta Integration Backend",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "nodemon --exec ts-node src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "migrate": "psql $DATABASE_URL -f migrations/001_initial_schema.sql",
+    "lint": "eslint src --ext .ts",
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "dotenv": "^16.3.1",
+    "pg": "^8.11.3",
+    "redis": "^4.6.10",
+    "bull": "^4.11.5",
+    "axios": "^1.6.2",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "express-rate-limit": "^7.1.5",
+    "express-validator": "^7.0.1",
+    "winston": "^3.11.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.10.5",
+    "@types/pg": "^8.10.9",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/cors": "^2.8.17",
+    "typescript": "^5.3.3",
+    "ts-node": "^10.9.2",
+    "nodemon": "^3.0.2",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
+    "@typescript-eslint/parser": "^6.15.0"
+  }
+}
+```
+
+---
+
+## CRITICAL IMPLEMENTATION NOTES
+
+### 1. Security Priorities
+- All Meta access tokens MUST be encrypted before storage
+- Webhook signatures MUST be validated
+- Rate limiting on all API endpoints
+- JWT tokens for authentication
+- HTTPS required in production
+- Environment variables never committed
+
+### 2. n8n Integration Requirements
+- Each workflow needs unique webhook URL
+- Test connectivity before going live
+- Handle n8n timeouts gracefully (10s max)
+- Log all webhook routing attempts
+- Support multiple workflows per institution
+- Allow custom configuration per client
+
+### 3. Meta App Review Preparation
+- App must be in "Live" mode to review
+- Need video demo showing full OAuth flow
+- Clear use case description required
+- Test users must be added to app
+- Privacy policy URL required
+- Data deletion callback URL required
+
+### 4. Database Considerations
+- Use connection pooling (max 10 connections)
+- Index all foreign keys
+- Regular backups scheduled
+- Monitor query performance
+- Use transactions for multi-step operations
+
+### 5. Error Handling
+- Never expose internal errors to clients
+- Log all errors with context
+- Retry failed webhook deliveries (3 attempts)
+- Graceful degradation if n8n is down
+- User-friendly error messages
+
+### 6. Performance Optimization
+- Use Redis for session management
+- Queue webhook processing (don't block)
+- Cache frequently accessed data
+- Lazy load large datasets
+- Paginate all list endpoints
+
+### 7. Monitoring & Logging
+- Log all webhook receipts
+- Track webhook routing success rate
+- Monitor token expiration
+- Alert on failed n8n connections
+- Track API response times
+
+---
+
+## DEPLOYMENT CHECKLIST
+
+### Pre-Deployment
+- [ ] Environment variables configured
+- [ ] Database migrations run successfully
+- [ ] SSL certificate installed
+- [ ] Domain DNS configured
+- [ ] Meta App created in developer portal
+- [ ] Meta App webhooks configured
+- [ ] n8n server accessible and tested
+- [ ] Encryption keys generated and secured
+- [ ] SMTP credentials configured (if using email)
+
+### Meta App Configuration
+- [ ] App ID and Secret added to environment
+- [ ] OAuth redirect URI set correctly
+- [ ] Webhook URLs configured in Meta App
+- [ ] Webhook verify token matches environment
+- [ ] Required permissions listed in app
+- [ ] Privacy policy URL added
+- [ ] Terms of service URL added
+- [ ] Data deletion callback URL added
+- [ ] Test users added to app
+
+### Testing Requirements
+- [ ] OAuth flow tested end-to-end
+- [ ] Page connection tested
+- [ ] Instagram connection tested
+- [ ] Webhook receipt tested (use Meta webhook tester)
+- [ ] n8n workflow routing tested
+- [ ] Token encryption/decryption tested
+- [ ] Rate limiting tested
+- [ ] Error handling tested
+
+### Production Launch
+- [ ] Switch Meta App to "Live" mode
+- [ ] Submit for App Review (if needed)
+- [ ] Monitor logs for first 24 hours
+- [ ] Test with real client
+- [ ] Setup automated backups
+- [ ] Configure monitoring/alerts
+
+---
+
+## SUCCESS METRICS
+
+Track these KPIs:
+- Webhook delivery success rate (target: >99%)
+- Average webhook processing time (target: <500ms)
+- n8n routing success rate (target: >95%)
+- Token refresh success rate (target: 100%)
+- API response time (target: <200ms)
+- Zero data loss during webhook processing
+
+---
+
+## SUPPORT & MAINTENANCE
+
+### Daily Tasks
+- Monitor error logs
+- Check webhook processing queue
+- Verify token expiration alerts
+
+### Weekly Tasks
+- Review failed webhook attempts
+- Check n8n workflow performance
+- Analyze conversation metrics
+- Review database performance
+
+### Monthly Tasks
+- Refresh long-lived tokens
+- Review and optimize database queries
+- Update dependencies
+- Security audit
+- Client usage analysis
+
+---
+
+## N8N WEBHOOK PROVISIONING MODEL
+
+### Architecture Overview
+The SaaS platform routes incoming Meta webhooks to n8n workflows. The routing model differs by subscription tier:
+
+### Free Tier - Shared Base Webhook
+All free-tier organizations share a **single base n8n webhook URL**. The n8n workflow behind this URL contains:
+1. **AI Agent node** - Processes incoming messages/comments
+2. **Router node** - Reads `organizationId` from payload to determine which knowledge base to use
+3. **Knowledge Base lookup** - Fetches the client's KB content via the SaaS API
+4. **Social Media API nodes** - Sends responses back via Meta Graph API
+
+**How it works:**
+```
+Meta Webhook → SaaS Platform → Base n8n Webhook URL
+                                    ↓
+                              Router (by orgId)
+                                    ↓
+                         Client Knowledge Base lookup
+                                    ↓
+                              AI Agent processes
+                                    ↓
+                         Reply via Meta Graph API
+```
+
+**Payload sent to base webhook:**
+```json
+{
+  "organizationId": "uuid",
+  "organizationName": "Client Corp",
+  "planType": "free",
+  "platform": "facebook",
+  "eventType": "messages",
+  "pageId": "123456",
+  "knowledgeBaseId": "uuid",
+  "event": { /* original Meta webhook payload */ },
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+### Paid Tiers - Dedicated Webhooks
+Paid clients (starter/professional/enterprise) get **dedicated n8n workflows** with unique webhook URLs:
+1. Seekers admin creates a custom n8n workflow for the client
+2. Admin enters the webhook URL in the SaaS admin panel (n8n_workflows table)
+3. Admin links the workflow to specific Facebook pages/Instagram accounts (workflow_connections table)
+4. Platform routes webhooks directly to the client's dedicated n8n workflow
+
+### Admin Provisioning Flow
+```
+1. Client requests workflow → workflow_requests table (status: pending)
+2. Admin reviews request → assigns to admin team member
+3. Admin builds n8n workflow on Seekers n8n server
+4. Admin enters webhook URL in SaaS admin panel
+5. Admin links workflow to client's pages/accounts
+6. Admin marks request as completed → client notified
+```
+
+### Environment Variables
+```bash
+# Base n8n webhook for free tier (shared across all free orgs)
+N8N_FREE_TIER_WEBHOOK_URL=https://n8n.seekersai.org/webhook/free-tier-base
+# Base URL for dedicated webhooks
+N8N_WEBHOOK_BASE_URL=https://n8n.seekersai.org/webhook
+```
+
+---
+
+## SUBSCRIPTION & BILLING SYSTEM
+
+### Tier Definitions
+
+| Feature | Free | Starter | Professional | Enterprise |
+|---------|------|---------|-------------|------------|
+| Monthly Price | $0 | $29/mo | $99/mo | Custom |
+| Connected Pages | 1 | 3 | 10 | Unlimited |
+| Instagram Accounts | 1 | 3 | 10 | Unlimited |
+| Knowledge Bases | 1 | 5 | 20 | Unlimited |
+| Conversations/month | 100 | 1,000 | 10,000 | Unlimited |
+| Workflows | Shared | 1 dedicated | 5 dedicated | Unlimited |
+| Add-ons | None | 2 | All | All + Custom |
+| Support | Community | Email | Priority | Dedicated |
+| n8n Webhook | Shared base | Dedicated | Dedicated | Dedicated + Custom |
+
+### Database Schema Addition
+```sql
+-- Subscription plans (system-wide definitions)
+CREATE TABLE subscription_plans (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(50) NOT NULL UNIQUE, -- free, starter, professional, enterprise
+  display_name VARCHAR(100) NOT NULL,
+  description TEXT,
+
+  -- Pricing
+  monthly_price DECIMAL(10,2) DEFAULT 0,
+  yearly_price DECIMAL(10,2) DEFAULT 0,
+  currency VARCHAR(3) DEFAULT 'USD',
+
+  -- Limits
+  max_connected_pages INTEGER,
+  max_instagram_accounts INTEGER,
+  max_knowledge_bases INTEGER,
+  max_conversations_per_month INTEGER,
+  max_workflows INTEGER,
+  max_addons INTEGER,
+
+  -- Features
+  features JSONB DEFAULT '{}', -- {"dedicated_webhook": true, "priority_support": true, ...}
+
+  is_active BOOLEAN DEFAULT true,
+  sort_order INTEGER DEFAULT 0,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Organization subscriptions
+CREATE TABLE subscriptions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  plan_id UUID REFERENCES subscription_plans(id),
+
+  -- Stripe integration
+  stripe_customer_id VARCHAR(255),
+  stripe_subscription_id VARCHAR(255),
+  stripe_price_id VARCHAR(255),
+
+  -- Status
+  status VARCHAR(50) DEFAULT 'trialing', -- trialing, active, past_due, canceled, unpaid
+
+  -- Billing period
+  current_period_start TIMESTAMP,
+  current_period_end TIMESTAMP,
+  trial_end TIMESTAMP,
+  canceled_at TIMESTAMP,
+
+  -- Usage this period
+  conversations_used INTEGER DEFAULT 0,
+
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Payment history
+CREATE TABLE payments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  subscription_id UUID REFERENCES subscriptions(id),
+
+  -- Stripe
+  stripe_payment_intent_id VARCHAR(255),
+  stripe_invoice_id VARCHAR(255),
+
+  -- Amount
+  amount DECIMAL(10,2) NOT NULL,
+  currency VARCHAR(3) DEFAULT 'USD',
+  status VARCHAR(50) NOT NULL, -- succeeded, failed, pending, refunded
+
+  -- Details
+  description TEXT,
+  invoice_url TEXT,
+  receipt_url TEXT,
+
+  paid_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Usage tracking (daily aggregation)
+CREATE TABLE usage_records (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+
+  record_date DATE NOT NULL,
+  conversations_count INTEGER DEFAULT 0,
+  messages_sent INTEGER DEFAULT 0,
+  messages_received INTEGER DEFAULT 0,
+  webhook_calls INTEGER DEFAULT 0,
+  ai_responses INTEGER DEFAULT 0,
+
+  created_at TIMESTAMP DEFAULT NOW(),
+
+  UNIQUE(organization_id, record_date)
+);
+
+-- Indexes
+CREATE INDEX idx_subscriptions_org ON subscriptions(organization_id);
+CREATE INDEX idx_subscriptions_stripe ON subscriptions(stripe_subscription_id);
+CREATE INDEX idx_payments_org ON payments(organization_id);
+CREATE INDEX idx_usage_records_org_date ON usage_records(organization_id, record_date);
+```
+
+### Stripe Integration Endpoints
+```
+POST   /api/billing/create-checkout-session
+  Body: { planId }
+  Description: Create Stripe Checkout session for plan upgrade
+
+POST   /api/billing/create-portal-session
+  Description: Create Stripe Customer Portal for managing subscription
+
+POST   /api/billing/webhooks/stripe
+  Description: Stripe webhook handler (subscription.created, invoice.paid, etc.)
+
+GET    /api/billing/subscription
+  Description: Get current subscription details
+
+GET    /api/billing/usage
+  Description: Get current period usage vs limits
+
+GET    /api/billing/invoices
+  Description: List payment/invoice history
+```
+
+### Usage Metering
+```typescript
+// Middleware: Check usage limits before processing
+async function checkUsageLimits(req, res, next) {
+  const org = req.organization;
+  const subscription = await getSubscription(org.id);
+  const plan = await getPlan(subscription.plan_id);
+
+  if (subscription.conversations_used >= plan.max_conversations_per_month) {
+    return res.status(429).json({
+      error: 'Monthly conversation limit reached',
+      limit: plan.max_conversations_per_month,
+      used: subscription.conversations_used,
+      upgradeUrl: '/settings/billing'
+    });
+  }
+
+  next();
+}
+```
+
+---
+
+## EMAIL SERVICE SPECIFICATION
+
+### Transactional Emails Required
+1. **Welcome email** - After registration
+2. **Email verification** - Verify email address link
+3. **Password reset** - Reset password link (expires in 1hr)
+4. **Meta connected** - Confirmation when Meta account linked
+5. **Workflow completed** - Admin finished building workflow
+6. **Token expiring** - Meta token expires in 7 days warning
+7. **Usage warning** - 80% and 100% of plan limits reached
+8. **Payment received** - Invoice/receipt confirmation
+9. **Payment failed** - Retry payment reminder
+10. **Subscription cancelled** - Cancellation confirmation
+
+### Implementation
+```bash
+# Email provider (pick one)
+EMAIL_PROVIDER=smtp  # smtp | sendgrid | ses
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=noreply@seekersai.org
+SMTP_PASS=app_password
+EMAIL_FROM="Seekers AI <noreply@seekersai.org>"
+```
+
+---
+
+## WORKERS SPECIFICATION
+
+### 1. Token Auto-Refresh Worker (`workers/tokenRefresher.ts`)
+```
+Schedule: Every 6 hours
+Logic:
+  1. Query meta_tokens WHERE expires_at < NOW() + INTERVAL '7 days' AND expires_at > NOW()
+  2. For each expiring token:
+     a. Decrypt current token
+     b. Call Meta Graph API to exchange for new long-lived token
+     c. Encrypt and store new token
+     d. Update expires_at
+  3. If refresh fails:
+     a. Log error
+     b. Send notification to admin + client
+     c. Mark token as needs_attention
+```
+
+### 2. Notification Dispatcher Worker (`workers/notificationWorker.ts`)
+```
+Trigger: Bull queue 'notifications'
+Logic:
+  1. Receive notification job from queue
+  2. Store in notifications table
+  3. Push via Socket.IO if user is online
+  4. Send email if high priority or user offline
+```
+
+### 3. Usage Aggregation Worker (`workers/usageAggregator.ts`)
+```
+Schedule: Every hour
+Logic:
+  1. Count conversations per org for current period
+  2. Update subscriptions.conversations_used
+  3. Check against plan limits
+  4. Send warning notifications at 80% and 100%
+```
+
+---
+
+## MULTI-TENANCY & ISOLATION
+
+### Tenant Middleware
+Every authenticated API request must scope data to the user's organization:
+```typescript
+// Applied after auth middleware on all client routes
+function tenantIsolation(req, res, next) {
+  // req.user.organizationId is set by auth middleware
+  // All subsequent DB queries MUST include WHERE organization_id = $orgId
+  req.organizationId = req.user.organizationId;
+  next();
+}
+```
+
+### Per-Tenant Rate Limiting
+```typescript
+const tierLimits = {
+  free: { windowMs: 60000, max: 30 },
+  starter: { windowMs: 60000, max: 100 },
+  professional: { windowMs: 60000, max: 300 },
+  enterprise: { windowMs: 60000, max: 1000 }
+};
+```
+
+---
+
+## CONTACT INFORMATION
+
+**Seekers AI**
+📩 Email: team@seekersai.org | support@seekersai.org
+📞 Phone: 01044332566 | 01010748045 | 01211100767
+🌐 Website: www.seekersai.org
+📍 Location: Cairo, Egypt
+
+---
+
+## FINAL NOTES FOR CLAUDE CODE
+
+This POC provides:
+✅ Complete database schema with all relationships
+✅ Full API endpoint specifications
+✅ Core service implementations (Meta, Token, Webhook Router)
+✅ Webhook processing with Bull queues
+✅ Docker setup for local development
+✅ Security best practices (encryption, validation, rate limiting)
+✅ n8n workflow integration architecture
+✅ Meta App Review preparation guidelines
+✅ Deployment checklist
+✅ n8n webhook provisioning model (free tier shared + paid tier dedicated)
+✅ Subscription & billing system with Stripe integration
+✅ Usage metering and plan limit enforcement
+✅ Email service specification (transactional emails)
+✅ Background workers (token refresh, notifications, usage aggregation)
+✅ Multi-tenancy isolation and per-tenant rate limiting
+
+**What Claude Code should build:**
+1. Complete backend API with all routes
+2. All service implementations
+3. Webhook processing worker
+4. Token auto-refresh worker
+5. Usage aggregation worker
+6. Database migrations (including billing tables)
+7. Stripe billing integration
+8. Email service (SMTP/SendGrid)
+9. Free-tier shared webhook routing logic
+10. Admin webhook provisioning endpoints
+11. Docker configuration
+12. Testing setup
+13. Documentation
+
+**Start with:**
+- Set up project structure
+- Initialize database schema (including billing & usage tables)
+- Implement authentication + email verification
+- Build Meta OAuth flow
+- Create webhook receivers
+- Implement n8n routing (free-tier shared + paid-tier dedicated)
+- Add Stripe billing integration
+- Build usage metering middleware
+
+**Architecture principle:**
+The SaaS platform is a CONNECTION MANAGER and WEBHOOK ROUTER, not an AI processor. All AI logic lives in n8n workflows on Seekers AI servers. Free-tier clients share a base n8n webhook; paid clients get dedicated webhooks provisioned by admins.

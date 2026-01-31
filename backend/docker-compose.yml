@@ -1,0 +1,152 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: seekers-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-seekers}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-seekers_dev_password}
+      POSTGRES_DB: ${DB_NAME:-seekers_platform}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./src/migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-seekers} -d ${DB_NAME:-seekers_platform}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - seekers-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: seekers-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-seekers_redis_password}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-seekers_redis_password}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - seekers-network
+
+  # Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: seekers-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3000
+      
+      # Database
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-seekers}
+      DB_PASSWORD: ${DB_PASSWORD:-seekers_dev_password}
+      DB_NAME: ${DB_NAME:-seekers_platform}
+      
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-seekers_redis_password}
+      
+      # JWT
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET:-your-super-secret-admin-jwt-key-change-in-production}
+      
+      # Encryption
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-32-char-encryption-key-here123}
+      
+      # Meta API
+      META_APP_ID: ${META_APP_ID}
+      META_APP_SECRET: ${META_APP_SECRET}
+      META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:-seekers_webhook_verify_token}
+      
+      # URLs
+      API_URL: ${API_URL:-http://localhost:3000}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3001}
+      
+      # CORS
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3001,http://localhost:3002}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - seekers-network
+
+  # n8n Workflow Automation (Optional - for local development)
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: seekers-n8n
+    restart: unless-stopped
+    environment:
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - NODE_ENV=production
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-http://localhost:5678/}
+      - GENERIC_TIMEZONE=UTC
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=${DB_NAME:-seekers_platform}
+      - DB_POSTGRESDB_USER=${DB_USER:-seekers}
+      - DB_POSTGRESDB_PASSWORD=${DB_PASSWORD:-seekers_dev_password}
+      - DB_POSTGRESDB_SCHEMA=n8n
+    volumes:
+      - n8n_data:/home/node/.n8n
+    ports:
+      - "5678:5678"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - seekers-network
+
+  # pgAdmin (Optional - for database management)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: seekers-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@seekers.ai}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - seekers-network
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:
+  redis_data:
+  n8n_data:
+  pgadmin_data:
+
+networks:
+  seekers-network:
+    driver: bridge
