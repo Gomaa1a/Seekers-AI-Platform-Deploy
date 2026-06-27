@@ -32,15 +32,15 @@ Mark each step `[x]` as we finish it. Fill the **VALUES TO FILL** as you get the
 - [x] Verify `https://DOMAIN/health` returns 200
 - [x] Verify webhook challenge URL echoes back `test`
 
-## Phase 2 — Host legal pages  (YOU / Claude)
-- [ ] Privacy Policy live at `https://www.seekersai.org/privacy-policy.html`
-- [ ] Data Deletion page live at `https://www.seekersai.org/data-deletion.html`
+## Phase 2 — Host legal pages  (DONE — served from backend)
+- [x] Privacy Policy live at `https://seekers-ai-platform-production.up.railway.app/privacy-policy.html`
+- [x] Data Deletion page live at `https://seekers-ai-platform-production.up.railway.app/data-deletion.html`
 
 ## Phase 3 — Configure Meta app dashboard  (YOU)
 - [x] Webhooks: callback `…/api/webhooks/meta` + `…/api/webhooks/instagram` + verify token (verified live)
 - [x] Subscribe webhook fields (FB: messages, messaging_postbacks, message_deliveries, message_reads, feed / IG: messages, comments)
-- [ ] Fix META_REDIRECT_URI to `/api/meta/oauth/callback` (Railway var)
-- [ ] Facebook Login: Valid OAuth Redirect URI `…/api/meta/oauth/callback`
+- [x] Fix META_REDIRECT_URI to `/api/meta/oauth/callback` (Railway var)
+- [x] Facebook Login: Valid OAuth Redirect URI `…/api/meta/oauth/callback`
 - [ ] Settings → Basic: Privacy Policy URL set
 - [ ] Settings → Basic: User Data Deletion = `…/api/meta/deletion`
 
