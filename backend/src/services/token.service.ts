@@ -33,19 +33,18 @@ export class TokenService {
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
     const result = await db.queryOne<{ id: string }>(
-      `INSERT INTO meta_tokens 
-       (organization_id, user_id, access_token, token_type, expires_at, scopes, meta_user_id, meta_user_name)
-       VALUES ($1, $2, $3, 'user_token', $4, $5, $6, $7)
-       ON CONFLICT (organization_id) WHERE token_type = 'user_token'
-       DO UPDATE SET 
-         access_token = EXCLUDED.access_token,
+      `INSERT INTO meta_tokens
+       (organization_id, access_token_encrypted, token_type, expires_at, scopes)
+       VALUES ($1, $2, 'user_token', $3, $4)
+       ON CONFLICT (organization_id)
+       DO UPDATE SET
+         access_token_encrypted = EXCLUDED.access_token_encrypted,
+         token_type = 'user_token',
          expires_at = EXCLUDED.expires_at,
          scopes = EXCLUDED.scopes,
-         meta_user_id = EXCLUDED.meta_user_id,
-         meta_user_name = EXCLUDED.meta_user_name,
          updated_at = NOW()
        RETURNING id`,
-      [organizationId, userId, encrypted, expiresAt, scopes, metaUserId, metaUserName]
+      [organizationId, encrypted, expiresAt, scopes]
     );
 
     logger.info('User token stored', { organizationId, metaUserId });
@@ -167,8 +166,8 @@ export class TokenService {
    * Get decrypted user token
    */
   async getUserToken(organizationId: string): Promise<string | null> {
-    const result = await db.queryOne<{ access_token: string }>(
-      `SELECT access_token FROM meta_tokens 
+    const result = await db.queryOne<{ access_token_encrypted: string }>(
+      `SELECT access_token_encrypted FROM meta_tokens
        WHERE organization_id = $1 AND token_type = 'user_token'
        ORDER BY created_at DESC LIMIT 1`,
       [organizationId]
@@ -176,7 +175,7 @@ export class TokenService {
 
     if (!result) return null;
 
-    return this.decryptToken(result.access_token);
+    return this.decryptToken(result.access_token_encrypted);
   }
 
   /**
