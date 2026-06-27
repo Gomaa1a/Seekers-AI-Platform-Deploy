@@ -151,7 +151,6 @@ export const config = {
       'instagram_manage_comments',
       'business_management',
       'public_profile',
-      'email',
     ],
   },
 

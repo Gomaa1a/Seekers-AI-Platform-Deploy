@@ -95,7 +95,7 @@ export class MetaService {
       const response = await this.api.get('/me', {
         params: {
           access_token: userToken,
-          fields: 'id,name,email',
+          fields: 'id,name',
         },
       });
 
