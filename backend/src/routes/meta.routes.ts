@@ -36,9 +36,11 @@ router.get(
   asyncHandler(async (req, res) => {
     const { code, state, error, error_description } = req.query;
 
+    const frontend = config.app.frontendUrl;
+
     if (error) {
       res.redirect(
-        `/dashboard/settings/integrations?error=${encodeURIComponent(
+        `${frontend}/dashboard/settings/integrations?error=${encodeURIComponent(
           error_description as string || error as string
         )}`
       );
@@ -46,7 +48,7 @@ router.get(
     }
 
     if (!code || !state) {
-      res.redirect('/dashboard/settings/integrations?error=Missing%20parameters');
+      res.redirect(`${frontend}/dashboard/settings/integrations?error=Missing%20parameters`);
       return;
     }
 
@@ -78,10 +80,10 @@ router.get(
       // Notify admins
       await notificationService.notifyMetaConnected(organizationId, 'Meta');
 
-      res.redirect('/dashboard/settings/integrations?success=true');
+      res.redirect(`${frontend}/dashboard/settings/integrations?success=true`);
     } catch (error: any) {
       res.redirect(
-        `/dashboard/settings/integrations?error=${encodeURIComponent(error.message)}`
+        `${frontend}/dashboard/settings/integrations?error=${encodeURIComponent(error.message)}`
       );
     }
   })
