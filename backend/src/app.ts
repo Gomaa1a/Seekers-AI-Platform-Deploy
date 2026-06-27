@@ -5,6 +5,7 @@ import compression from 'compression';
 import { createServer, Server as HTTPServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import jwt from 'jsonwebtoken';
+import path from 'path';
 
 import { config } from './config/environment';
 import { logger } from './config';
@@ -110,6 +111,12 @@ app.get('/health', (_req: Request, res: Response) => {
     version: process.env.npm_package_version || '1.0.0',
   });
 });
+
+// ============================================
+// Static legal pages (privacy policy, data deletion) for Meta App Review
+// ============================================
+
+app.use(express.static(path.join(__dirname, '../public')));
 
 // ============================================
 // API Routes

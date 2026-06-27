@@ -8,7 +8,7 @@ Mark each step `[x]` as we finish it. Fill the **VALUES TO FILL** as you get the
 ---
 
 ## VALUES TO FILL (shared across steps)
-- Backend public domain: `__________` (e.g. `seekers-backend.up.railway.app`)
+- Backend public domain: `seekers-ai-platform-production.up.railway.app`
 - Frontend / site domain: `https://www.seekersai.org`
 - Webhook verify token: *(see backend/.railway-secrets.local)*
 - Meta App ID: `__________`
@@ -23,22 +23,24 @@ Mark each step `[x]` as we finish it. Fill the **VALUES TO FILL** as you get the
 - [ ] Wire legal pages into the site (or confirm where they're hosted)
 
 ## Phase 1 — Deploy backend to Railway  (YOU)
-- [ ] Create Railway project + add PostgreSQL + add Redis
-- [ ] Add backend service from repo, root dir = `Seekers_main/backend`
-- [ ] Set all environment variables (see RAILWAY_DEPLOY.md)
-- [ ] Run DB migrations once (`npm run migrate` against public DB URL)
-- [ ] Generate public domain → record it in VALUES above
-- [ ] Verify `https://DOMAIN/health` returns 200
-- [ ] Verify webhook challenge URL echoes back `test`
+- [x] Create Railway project + add PostgreSQL + add Redis
+- [x] Add backend service from repo, root dir = `backend`
+- [x] Set all environment variables (see RAILWAY_DEPLOY.md)
+- [x] Update API_BASE_URL + META_REDIRECT_URI with real domain
+- [x] Run DB migrations once (`npm run migrate` against public DB URL)
+- [x] Generate public domain → record it in VALUES above
+- [x] Verify `https://DOMAIN/health` returns 200
+- [x] Verify webhook challenge URL echoes back `test`
 
 ## Phase 2 — Host legal pages  (YOU / Claude)
 - [ ] Privacy Policy live at `https://www.seekersai.org/privacy-policy.html`
 - [ ] Data Deletion page live at `https://www.seekersai.org/data-deletion.html`
 
 ## Phase 3 — Configure Meta app dashboard  (YOU)
-- [ ] Webhooks: callback `…/api/webhooks/meta` + `…/api/webhooks/instagram` + verify token
-- [ ] Subscribe webhook fields (messages, messaging_postbacks, feed / messages, comments, mentions)
-- [ ] Facebook Login: Valid OAuth Redirect URI `…/api/meta/callback`
+- [x] Webhooks: callback `…/api/webhooks/meta` + `…/api/webhooks/instagram` + verify token (verified live)
+- [x] Subscribe webhook fields (FB: messages, messaging_postbacks, message_deliveries, message_reads, feed / IG: messages, comments)
+- [ ] Fix META_REDIRECT_URI to `/api/meta/oauth/callback` (Railway var)
+- [ ] Facebook Login: Valid OAuth Redirect URI `…/api/meta/oauth/callback`
 - [ ] Settings → Basic: Privacy Policy URL set
 - [ ] Settings → Basic: User Data Deletion = `…/api/meta/deletion`
 

@@ -36,6 +36,9 @@ COPY --from=builder /app/dist ./dist
 # Copy migrations
 COPY --from=builder /app/src/migrations ./src/migrations
 
+# Copy static legal pages (privacy policy, data deletion)
+COPY --from=builder /app/public ./public
+
 # Set ownership
 RUN chown -R nodejs:nodejs /app
 
