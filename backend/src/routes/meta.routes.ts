@@ -214,7 +214,7 @@ router.delete(
 
     // Unsubscribe from webhooks
     try {
-      const decryptedToken = tokenService.decryptToken(page.page_access_token);
+      const decryptedToken = tokenService.decryptToken(page.access_token_encrypted);
       await metaService.unsubscribePageWebhook(page.page_id, decryptedToken);
     } catch (error) {
       // Continue even if unsubscribe fails
@@ -258,7 +258,7 @@ router.get(
 
     for (const page of facebookPages) {
       try {
-        const decryptedToken = tokenService.decryptToken(page.page_access_token);
+        const decryptedToken = tokenService.decryptToken(page.access_token_encrypted);
         const igAccount = await metaService.getInstagramAccount(page.page_id, decryptedToken);
         
         if (igAccount) {
@@ -313,7 +313,7 @@ router.post(
     }
 
     // Get Instagram account details
-    const decryptedToken = tokenService.decryptToken(fbPage.page_access_token);
+    const decryptedToken = tokenService.decryptToken(fbPage.access_token_encrypted);
     const igAccount = await metaService.getInstagramAccount(fbPage.page_id, decryptedToken);
 
     if (!igAccount || igAccount.id !== instagramId) {
@@ -407,11 +407,11 @@ router.get(
           pageId: p.page_id,
           name: p.page_name,
           isActive: p.is_active,
-          pictureUrl: p.page_picture_url,
+          pictureUrl: p.picture_url,
         })),
         instagramAccounts: instagramAccounts.map((a) => ({
           id: a.id,
-          instagramId: a.instagram_business_account_id,
+          instagramId: a.instagram_id,
           username: a.username,
           isActive: a.is_active,
           profilePictureUrl: a.profile_picture_url,

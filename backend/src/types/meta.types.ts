@@ -21,23 +21,30 @@ export interface FacebookPage {
   organization_id: string;
   page_id: string;
   page_name: string | null;
-  page_category: string | null;
-  page_access_token: string; // Encrypted
+  // Actual DB columns (001_initial_schema.sql):
+  access_token_encrypted: string; // Encrypted
+  category: string | null;
+  picture_url: string | null;
   token_expires_at: Date | null;
   is_active: boolean;
   webhook_subscribed: boolean;
-  page_picture_url: string | null;
-  page_link: string | null;
-  followers_count: number | null;
   created_at: Date;
   updated_at: Date;
+  // Legacy/optional aliases kept for backward-compat with older code paths:
+  page_category?: string | null;
+  page_access_token?: string;
+  page_picture_url?: string | null;
+  page_link?: string | null;
+  followers_count?: number | null;
 }
 
 export interface InstagramAccount {
   id: string;
   organization_id: string;
   facebook_page_id: string;
-  instagram_business_account_id: string;
+  // Actual DB columns:
+  instagram_id: string;
+  access_token_encrypted: string;
   username: string | null;
   is_active: boolean;
   webhook_subscribed: boolean;
@@ -45,6 +52,8 @@ export interface InstagramAccount {
   followers_count: number | null;
   created_at: Date;
   updated_at: Date;
+  // Legacy/optional alias:
+  instagram_business_account_id?: string;
 }
 
 // ============================================

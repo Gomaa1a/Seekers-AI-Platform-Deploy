@@ -69,17 +69,15 @@ export class TokenService {
     const encrypted = this.encryptToken(pageAccessToken);
 
     const result = await db.queryOne<{ id: string }>(
-      `INSERT INTO facebook_pages 
-       (organization_id, page_id, page_name, page_access_token, page_category, page_link, page_picture_url, followers_count)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       ON CONFLICT (page_id) 
-       DO UPDATE SET 
-         page_access_token = EXCLUDED.page_access_token,
+      `INSERT INTO facebook_pages
+       (organization_id, page_id, page_name, access_token_encrypted, category, picture_url)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (page_id)
+       DO UPDATE SET
+         access_token_encrypted = EXCLUDED.access_token_encrypted,
          page_name = EXCLUDED.page_name,
-         page_category = EXCLUDED.page_category,
-         page_link = EXCLUDED.page_link,
-         page_picture_url = EXCLUDED.page_picture_url,
-         followers_count = EXCLUDED.followers_count,
+         category = EXCLUDED.category,
+         picture_url = EXCLUDED.picture_url,
          updated_at = NOW()
        RETURNING id`,
       [
@@ -88,9 +86,7 @@ export class TokenService {
         pageName,
         encrypted,
         additionalData?.category || null,
-        additionalData?.link || null,
         additionalData?.pictureUrl || null,
-        additionalData?.followersCount || null,
       ]
     );
 
@@ -138,28 +134,28 @@ export class TokenService {
    * Get decrypted page token
    */
   async getPageToken(pageId: string): Promise<string | null> {
-    const result = await db.queryOne<{ page_access_token: string }>(
-      'SELECT page_access_token FROM facebook_pages WHERE page_id = $1',
+    const result = await db.queryOne<{ access_token_encrypted: string }>(
+      'SELECT access_token_encrypted FROM facebook_pages WHERE page_id = $1',
       [pageId]
     );
 
     if (!result) return null;
 
-    return this.decryptToken(result.page_access_token);
+    return this.decryptToken(result.access_token_encrypted);
   }
 
   /**
    * Get decrypted page token by internal ID
    */
   async getPageTokenById(id: string): Promise<string | null> {
-    const result = await db.queryOne<{ page_access_token: string }>(
-      'SELECT page_access_token FROM facebook_pages WHERE id = $1',
+    const result = await db.queryOne<{ access_token_encrypted: string }>(
+      'SELECT access_token_encrypted FROM facebook_pages WHERE id = $1',
       [id]
     );
 
     if (!result) return null;
 
-    return this.decryptToken(result.page_access_token);
+    return this.decryptToken(result.access_token_encrypted);
   }
 
   /**
