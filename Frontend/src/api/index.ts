@@ -23,6 +23,18 @@ export { workflowRequestService } from './services/workflowRequests';
 export { workflowRequestService as workflowRequestsService } from './services/workflowRequests';
 export type { ListWorkflowRequestsParams, UpdateWorkflowRequestData, SendMessageData } from './services/workflowRequests';
 
+// AI Agents (self-serve)
+export { agentService } from './services/agents';
+export type {
+  AiAgent,
+  AgentTone,
+  AgentChannel,
+  AgentStatus,
+  CreateAgentData,
+  UpdateAgentData,
+  AgentStats,
+} from './services/agents';
+
 // Notifications
 export { notificationService } from './services/notifications';
 export type { ListNotificationsParams } from './services/notifications';

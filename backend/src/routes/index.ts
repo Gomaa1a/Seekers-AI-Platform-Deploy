@@ -5,6 +5,7 @@ export { default as metaRoutes } from './meta.routes';
 export { default as organizationRoutes } from './organization.routes';
 export { default as knowledgeBaseRoutes } from './knowledgeBase.routes';
 export { default as workflowRequestRoutes } from './workflowRequest.routes';
+export { default as agentRoutes } from './agent.routes';
 export { default as webhookRoutes } from './webhook.routes';
 export { default as notificationRoutes } from './notification.routes';
 export { default as analyticsRoutes } from './analytics.routes';

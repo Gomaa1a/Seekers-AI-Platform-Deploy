@@ -149,6 +149,7 @@ export const config = {
       'instagram_basic',
       'instagram_manage_messages',
       'instagram_manage_comments',
+      'business_management',
       'public_profile',
       'email',
     ],

@@ -18,9 +18,9 @@ import UserProfileSettings from './pages/UserProfileSettings';
 
 // Client Pages
 import ClientDashboard from './pages/ClientDashboard';
-import WorkflowRequestForm from './pages/WorkflowRequestForm';
+import ClientAgents from './pages/ClientAgents';
+import CreateAgent from './pages/CreateAgent';
 import KnowledgeBaseLibrary from './pages/KnowledgeBaseLibrary';
-import ClientAddons from './pages/ClientAddons';
 import ClientConnectedAccounts from './pages/ClientConnectedAccounts';
 import ClientConversations from './pages/ClientConversations';
 import ClientAnalytics from './pages/ClientAnalytics';
@@ -148,32 +148,32 @@ const AppContent: React.FC = () => {
                 </ProtectedRoute>
               } 
             />
-            <Route 
-              path="/workflows/new" 
+            <Route
+              path="/agents"
               element={
                 <ProtectedRoute>
-                  <WorkflowRequestForm />
+                  <ClientAgents />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/knowledge-bases" 
+            <Route
+              path="/agents/new"
+              element={
+                <ProtectedRoute>
+                  <CreateAgent />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/knowledge-bases"
               element={
                 <ProtectedRoute>
                   <KnowledgeBaseLibrary />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/addons" 
-              element={
-                <ProtectedRoute>
-                  <ClientAddons />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="/accounts" 
+            <Route
+              path="/accounts"
               element={
                 <ProtectedRoute>
                   <ClientConnectedAccounts />

@@ -21,6 +21,7 @@ import {
   organizationRoutes,
   knowledgeBaseRoutes,
   workflowRequestRoutes,
+  agentRoutes,
   webhookRoutes,
   notificationRoutes,
   analyticsRoutes,
@@ -129,6 +130,7 @@ app.use('/api/organization', organizationRoutes);
 app.use('/api/meta', metaRoutes);
 app.use('/api/knowledge-bases', knowledgeBaseRoutes);
 app.use('/api/workflow-requests', workflowRequestRoutes);
+app.use('/api/agents', agentRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 

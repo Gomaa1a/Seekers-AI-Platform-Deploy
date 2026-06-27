@@ -31,9 +31,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin, onLogout, isOpen, onClose })
 
   const clientLinks: SidebarLinkItem[] = [
     { name: 'Dashboard', path: '/dashboard', icon: 'grid_view' },
+    { name: 'AI Agents', path: '/agents', icon: 'smart_toy' },
     { name: 'Knowledge Bases', path: '/knowledge-bases', icon: 'database' },
-    { name: 'Workflow Requests', path: '/workflows/new', icon: 'account_tree' },
-    { name: 'Add-ons', path: '/addons', icon: 'extension' },
     { name: 'Connected Accounts', path: '/accounts', icon: 'link' },
     { name: 'Conversations', path: '/conversations', icon: 'forum' },
     { name: 'Analytics', path: '/analytics', icon: 'bar_chart' },

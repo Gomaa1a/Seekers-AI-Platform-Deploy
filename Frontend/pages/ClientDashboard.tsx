@@ -172,11 +172,11 @@ const ClientDashboard: React.FC = () => {
           <h2 className="text-4xl font-extrabold tracking-tight">Mission Control</h2>
         </div>
         <div className="flex gap-4">
-          <button 
-            onClick={() => navigate('/workflows/new')}
+          <button
+            onClick={() => navigate('/agents/new')}
             className="px-8 py-3.5 bg-primary text-background-dark rounded-xl text-[10px] font-black shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all uppercase tracking-widest"
           >
-            Request Automation
+            Create AI Agent
           </button>
         </div>
       </div>

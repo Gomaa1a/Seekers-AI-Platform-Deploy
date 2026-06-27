@@ -4,6 +4,7 @@ export { metaService, MetaService } from './meta.service';
 export { tokenService, TokenService } from './token.service';
 export { knowledgeBaseService, KnowledgeBaseService } from './knowledgeBase.service';
 export { workflowRequestService, WorkflowRequestService } from './workflowRequest.service';
+export { agentService, AgentService } from './agent.service';
 export { notificationService, NotificationService } from './notification.service';
 export { webhookRouterService, WebhookRouterService } from './webhookRouter.service';
 export { analyticsService, AnalyticsService } from './analytics.service';

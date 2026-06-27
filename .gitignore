@@ -15,6 +15,10 @@ out/
 .env.*.local
 .env.production.local
 
+# Secrets (local only, never commit)
+*.secrets.local
+.railway-secrets.local
+
 # IDE and editor files
 .vscode/
 .idea/

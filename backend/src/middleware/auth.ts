@@ -50,7 +50,7 @@ export const authenticate = async (
       organization_id: string;
       subscription_status: string;
     }>(
-      `SELECT u.id as user_id, u.email, o.id as organization_id, o.subscription_status
+      `SELECT u.id as user_id, u.email, o.id as organization_id, o.status as subscription_status
        FROM users u
        JOIN organizations o ON o.owner_id = u.id
        WHERE u.id = $1`,
