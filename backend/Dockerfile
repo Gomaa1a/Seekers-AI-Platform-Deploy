@@ -33,7 +33,9 @@ RUN npm ci --only=production && npm cache clean --force
 # Copy built application
 COPY --from=builder /app/dist ./dist
 
-# Copy migrations
+# Copy migrations — compiled migrate.js resolves them at dist/migrations,
+# and src/migrations is kept for any tooling that expects the source path.
+COPY --from=builder /app/src/migrations ./dist/migrations
 COPY --from=builder /app/src/migrations ./src/migrations
 
 # Copy static legal pages (privacy policy, data deletion)
