@@ -51,6 +51,14 @@ const envSchema = z.object({
   N8N_WEBHOOK_BASE_URL: z.string().url(),
   N8N_WEBHOOK_TIMEOUT: z.string().default('30000'),
 
+  // AI — Claude for replies (cheap-but-good: Haiku 4.5), Gemini for voice/image
+  ANTHROPIC_API_KEY: z.string().optional(),
+  ANTHROPIC_MODEL: z.string().default('claude-haiku-4-5'),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default('gemini-2.5-flash'),
+  // How long to buffer rapid-fire incoming messages before the agent replies (seconds)
+  AGENT_BUFFER_SECONDS: z.string().default('6'),
+
   // Email
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.string().optional(),
@@ -173,6 +181,14 @@ export const config = {
     apiKey: env.N8N_API_KEY,
     webhookBaseUrl: env.N8N_WEBHOOK_BASE_URL,
     timeout: parseInt(env.N8N_WEBHOOK_TIMEOUT, 10),
+  },
+
+  ai: {
+    anthropicApiKey: env.ANTHROPIC_API_KEY,
+    anthropicModel: env.ANTHROPIC_MODEL,
+    geminiApiKey: env.GEMINI_API_KEY,
+    geminiModel: env.GEMINI_MODEL,
+    bufferSeconds: parseInt(env.AGENT_BUFFER_SECONDS, 10),
   },
 
   gcs: {

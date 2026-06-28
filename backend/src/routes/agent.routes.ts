@@ -120,11 +120,30 @@ router.post(
   '/:id/connect',
   authenticate,
   asyncHandler(async (req, res) => {
+    const { channel, channels } = req.body || {};
     const agent = await agentService.update(req.params.id, req.user!.organizationId, {
-      channel: req.body?.channel,
+      channel,
+      channels: Array.isArray(channels) ? channels : undefined,
       channelConnected: true,
     });
     res.json({ success: true, message: 'Channel connected', data: agent });
+  })
+);
+
+/**
+ * @route   POST /api/agents/:id/persona
+ * @desc    Generate (and save) an AI-written persona/system prompt for the agent
+ * @access  Private
+ */
+router.post(
+  '/:id/persona',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const agent = await agentService.generatePersona(
+      req.params.id,
+      req.user!.organizationId
+    );
+    res.json({ success: true, message: 'Persona generated', data: agent });
   })
 );
 

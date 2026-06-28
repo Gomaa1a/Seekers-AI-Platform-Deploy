@@ -4,6 +4,8 @@ import {
   WebhookEvent,
   N8nWorkflow,
 } from '../types';
+import { agentService } from './agent.service';
+import { liveAgentService } from './liveAgent.service';
 
 export class WebhookRouterService {
   private readonly WEBHOOK_QUEUE_KEY = 'webhooks:queue';
@@ -30,6 +32,16 @@ export class WebhookRouterService {
       if (!page) {
         logger.warn('Page not found for webhook', { pageId, platform });
         return;
+      }
+
+      // Native in-app AI agent: if this org has an active agent for the channel,
+      // it answers DMs directly (buffer → reply → send) instead of routing to n8n.
+      if (
+        (eventType === 'messages' || eventType === 'instagram_messages') &&
+        (platform === 'facebook' || platform === 'instagram')
+      ) {
+        const handled = await this.tryNativeAgent(page, platform, pageId, data);
+        if (handled) return;
       }
 
       // Find matching dedicated workflow (paid tiers)
@@ -74,6 +86,40 @@ export class WebhookRouterService {
       // Queue for retry
       await this.queueForRetry(event);
     }
+  }
+
+  /**
+   * Hand a DM to the org's active in-app AI agent, if one exists.
+   * Returns true when the event was handled natively (caller should stop).
+   */
+  private async tryNativeAgent(
+    page: { id: string; organization_id: string; page_name: string },
+    platform: 'facebook' | 'instagram',
+    assetId: string,
+    data: any
+  ): Promise<boolean> {
+    const message = data?.message;
+    const senderId = data?.senderId;
+    if (!senderId || !message) return false;
+
+    // Never let the agent reply to its own echoed messages.
+    if (message.is_echo) return true;
+
+    const agent = await agentService.getActiveAgentForChannel(
+      page.organization_id,
+      platform
+    );
+    if (!agent) return false; // fall back to n8n routing
+
+    await liveAgentService.bufferIncoming({
+      platform,
+      assetId,
+      senderId,
+      text: message.text,
+      attachments: message.attachments,
+      messageId: message.mid,
+    });
+    return true;
   }
 
   /**

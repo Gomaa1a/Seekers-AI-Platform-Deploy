@@ -110,7 +110,10 @@ const ClientAgents: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {agents.map(agent => {
-            const ch = CHANNEL_META[agent.channel] || CHANNEL_META.web;
+            // Show all connected channels; fall back to the primary channel.
+            const agentChannels = (agent.channels && agent.channels.length > 0)
+              ? agent.channels
+              : [agent.channel];
             const st = STATUS_META[agent.status] || STATUS_META.draft;
             return (
               <div key={agent.id} className="presentation-card rounded-3xl p-6 flex flex-col">
@@ -130,9 +133,14 @@ const ClientAgents: React.FC = () => {
                 </div>
 
                 <div className="flex flex-wrap gap-2 mb-5">
-                  <span className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-background-dark text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-sm">{ch.icon}</span>{ch.label}
-                  </span>
+                  {agentChannels.map(c => {
+                    const ch = CHANNEL_META[c] || CHANNEL_META.web;
+                    return (
+                      <span key={c} className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-background-dark text-slate-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-sm">{ch.icon}</span>{ch.label}
+                      </span>
+                    );
+                  })}
                   <span className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-background-dark text-slate-400 text-[10px] font-black uppercase tracking-widest">{agent.tone}</span>
                   {agent.channel_connected
                     ? <span className="px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-500 text-[10px] font-black uppercase tracking-widest">Connected</span>

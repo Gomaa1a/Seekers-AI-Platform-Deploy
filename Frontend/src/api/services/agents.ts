@@ -21,8 +21,10 @@ export interface AiAgent {
   business_type: string | null;
   tone: AgentTone;
   greeting: string | null;
+  system_prompt: string | null;
   language: string;
   channel: AgentChannel;
+  channels: AgentChannel[];
   channel_connected: boolean;
   knowledge: string | null;
   knowledge_base_id: string | null;
@@ -42,8 +44,10 @@ export interface CreateAgentData {
   businessType?: string;
   tone?: AgentTone;
   greeting?: string;
+  systemPrompt?: string;
   language?: string;
   channel?: AgentChannel;
+  channels?: AgentChannel[];
   knowledge?: string;
   knowledgeBaseId?: string | null;
   emotionDetection?: boolean;
@@ -114,6 +118,21 @@ export const agentService = {
   // POST /api/agents/:id/connect
   async connectChannel(id: string, channel: AgentChannel): Promise<AiAgent> {
     const response = await apiClient.post<AiAgent>(`/agents/${id}/connect`, { channel });
+    return response.data;
+  },
+
+  // POST /api/agents/:id/connect — connect one or more channels at once
+  async connectChannels(id: string, channels: AgentChannel[]): Promise<AiAgent> {
+    const response = await apiClient.post<AiAgent>(`/agents/${id}/connect`, {
+      channel: channels[0],
+      channels,
+    });
+    return response.data;
+  },
+
+  // POST /api/agents/:id/persona — AI-generate & save the agent's persona
+  async generatePersona(id: string): Promise<AiAgent> {
+    const response = await apiClient.post<AiAgent>(`/agents/${id}/persona`);
     return response.data;
   },
 

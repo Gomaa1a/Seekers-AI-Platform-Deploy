@@ -12,11 +12,17 @@ const TONES: { value: AgentTone; label: string; icon: string }[] = [
   { value: 'empathetic', label: 'Empathetic', icon: 'volunteer_activism' },
 ];
 
-// WhatsApp is intentionally disabled for now — re-add { value: 'whatsapp', ... } to bring it back.
-const CHANNELS: { value: AgentChannel; label: string; icon: string; hint: string }[] = [
+// You can connect more than one channel. WhatsApp is coming soon (disabled).
+const CHANNELS: {
+  value: AgentChannel;
+  label: string;
+  icon: string;
+  hint: string;
+  comingSoon?: boolean;
+}[] = [
   { value: 'facebook', label: 'Facebook', icon: 'thumb_up', hint: 'Messenger & page comments' },
   { value: 'instagram', label: 'Instagram', icon: 'photo_camera', hint: 'DMs & comment replies' },
-  { value: 'web', label: 'Website', icon: 'language', hint: 'Embed a chat widget on your site' },
+  { value: 'whatsapp', label: 'WhatsApp', icon: 'chat', hint: 'Coming soon', comingSoon: true },
 ];
 
 const STEPS = ['Basics', 'Knowledge', 'Test', 'Channel', 'Go live'];
@@ -34,7 +40,38 @@ const CreateAgent: React.FC = () => {
   const [tone, setTone] = useState<AgentTone>('friendly');
   const [greeting, setGreeting] = useState('');
   const [knowledge, setKnowledge] = useState('');
-  const [channel, setChannel] = useState<AgentChannel>('facebook');
+  const [systemPrompt, setSystemPrompt] = useState('');
+  const [generatingPersona, setGeneratingPersona] = useState(false);
+  const [channels, setChannels] = useState<AgentChannel[]>(['facebook']);
+
+  const toggleChannel = (value: AgentChannel) => {
+    setChannels((prev) =>
+      prev.includes(value) ? prev.filter((c) => c !== value) : [...prev, value]
+    );
+  };
+
+  // Lightweight, instant knowledge-base completeness nudge (keyword heuristic, EN + AR).
+  const KB_CHECKS: { label: string; re: RegExp }[] = [
+    { label: 'Prices', re: /\b(price|cost|fee|egp|le)\b|سعر|أسعار|جنيه|تكلفة/i },
+    { label: 'Working hours', re: /\b(hour|open|close|am|pm|daily|sun|mon)\b|مواعيد|ساعات|من\s|إلى\s|يومي/i },
+    { label: 'Location / branches', re: /\b(branch|address|location|map|cairo|giza)\b|فرع|فروع|عنوان|القاهرة|الجيزة/i },
+    { label: 'Booking / contact', re: /\b(book|appointment|reserve|phone|whatsapp|contact)\b|حجز|موعد|تواصل|رقم|اتصل/i },
+  ];
+  const kbStatus = KB_CHECKS.map((c) => ({ label: c.label, present: c.re.test(knowledge) }));
+  const kbMissing = kbStatus.filter((c) => !c.present).length;
+
+  const generatePersona = async () => {
+    if (!agentId) return;
+    setGeneratingPersona(true); setError(null);
+    try {
+      // Persist latest basics + knowledge so the AI writes from current details.
+      await agentService.update(agentId, { name, businessType, tone, greeting, knowledge });
+      const agent = await agentService.generatePersona(agentId);
+      setSystemPrompt(agent.system_prompt || '');
+    } catch (e: any) {
+      setError(e?.response?.data?.message || 'Could not generate the persona. Try again.');
+    } finally { setGeneratingPersona(false); }
+  };
 
   const go = (n: number) => { setError(null); setStep(n); };
 
@@ -60,19 +97,23 @@ const CreateAgent: React.FC = () => {
     if (!agentId) return;
     setSaving(true); setError(null);
     try {
-      await agentService.update(agentId, { knowledge });
+      await agentService.update(agentId, {
+        knowledge,
+        ...(systemPrompt.trim() ? { systemPrompt } : {}),
+      });
       go(3);
     } catch (e: any) {
       setError(e?.response?.data?.message || 'Could not save knowledge.');
     } finally { setSaving(false); }
   };
 
-  // Step 3 -> connect the channel
+  // Step 3 -> connect the channel(s)
   const submitChannel = async () => {
     if (!agentId) return;
+    if (channels.length === 0) { setError('Pick at least one channel to continue.'); return; }
     setSaving(true); setError(null);
     try {
-      await agentService.connectChannel(agentId, channel);
+      await agentService.connectChannels(agentId, channels);
       go(5);
     } catch (e: any) {
       setError(e?.response?.data?.message || 'Could not connect channel.');
@@ -177,6 +218,38 @@ const CreateAgent: React.FC = () => {
                 placeholder={'Example:\n\nBusiness hours: Sun–Thu, 9am–6pm (Cairo).\nShipping: 2–4 days across Egypt, free over 1000 EGP.\nReturns: accepted within 14 days in original packaging.'} />
               <p className="text-[11px] text-slate-400 font-bold mt-2">{knowledge.trim() ? `${knowledge.trim().split(/\s+/).length} words` : 'You can add this later, too.'}</p>
             </div>
+
+            {/* Knowledge completeness nudge */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-background-dark border border-slate-100 dark:border-border-dark">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">
+                {kbMissing === 0 ? '✅ Knowledge looks complete' : `Add these so your agent answers confidently (${kbMissing} missing)`}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {kbStatus.map(c => (
+                  <span key={c.label} className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 ${c.present ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500'}`}>
+                    <span className="material-symbols-outlined text-sm">{c.present ? 'check_circle' : 'add_circle'}</span>{c.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* AI persona generator */}
+            <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10">
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <div>
+                  <p className="text-sm font-black dark:text-white">Agent persona</p>
+                  <p className="text-[11px] text-slate-400 font-medium">Let AI write the personality from your details — you can edit it.</p>
+                </div>
+                <button type="button" onClick={generatePersona} disabled={generatingPersona || !agentId}
+                  className="px-4 py-2.5 bg-primary text-background-dark rounded-xl text-[10px] font-black uppercase tracking-widest shrink-0 disabled:opacity-50">
+                  {generatingPersona ? 'Writing…' : systemPrompt ? '↻ Regenerate' : '✨ Generate'}
+                </button>
+              </div>
+              {systemPrompt && (
+                <textarea className={`${inputCls} min-h-[140px] resize-y leading-relaxed`} value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} />
+              )}
+            </div>
+
             <div className="flex justify-between pt-2">
               <button onClick={() => go(1)} className="px-6 py-4 bg-slate-100 dark:bg-background-dark border border-slate-200 dark:border-border-dark rounded-2xl text-[11px] font-black uppercase tracking-widest text-slate-500 hover:text-white transition-all">Back</button>
               <button onClick={submitKnowledge} disabled={saving} className="px-10 py-4 bg-primary text-background-dark rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-xl hover:scale-[1.03] active:scale-95 transition-all disabled:opacity-50">
@@ -210,23 +283,38 @@ const CreateAgent: React.FC = () => {
           <div className="space-y-6 animate-in fade-in duration-300">
             <div>
               <label className={labelCls}>Where should it answer?</label>
+              <p className="text-sm text-slate-500 font-medium mb-3">Pick one or more channels — your agent answers on all of them.</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {CHANNELS.map(c => (
-                  <button key={c.value} onClick={() => setChannel(c.value)}
-                    className={`p-5 rounded-2xl border text-left flex items-start gap-4 transition-all ${channel === c.value ? 'bg-primary/10 border-primary scale-[1.02]' : 'border-slate-200 dark:border-border-dark hover:border-primary/50'}`}>
-                    <div className={`size-11 rounded-xl flex items-center justify-center shrink-0 ${channel === c.value ? 'bg-primary text-background-dark' : 'bg-slate-100 dark:bg-background-dark text-slate-400'}`}>
-                      <span className="material-symbols-outlined">{c.icon}</span>
-                    </div>
-                    <div>
-                      <p className="text-sm font-black dark:text-white">{c.label}</p>
-                      <p className="text-[11px] text-slate-400 font-medium leading-snug mt-0.5">{c.hint}</p>
-                    </div>
-                  </button>
-                ))}
+                {CHANNELS.map(c => {
+                  const selected = channels.includes(c.value);
+                  return (
+                    <button key={c.value} type="button"
+                      onClick={() => !c.comingSoon && toggleChannel(c.value)}
+                      disabled={c.comingSoon}
+                      aria-pressed={selected}
+                      className={`relative p-5 rounded-2xl border text-left flex items-start gap-4 transition-all ${c.comingSoon ? 'border-slate-200 dark:border-border-dark opacity-60 cursor-not-allowed' : selected ? 'bg-primary/10 border-primary scale-[1.02]' : 'border-slate-200 dark:border-border-dark hover:border-primary/50'}`}>
+                      <div className={`size-11 rounded-xl flex items-center justify-center shrink-0 ${selected && !c.comingSoon ? 'bg-primary text-background-dark' : 'bg-slate-100 dark:bg-background-dark text-slate-400'}`}>
+                        <span className="material-symbols-outlined">{c.icon}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-black dark:text-white flex items-center gap-2">
+                          {c.label}
+                          {c.comingSoon && (
+                            <span className="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-background-dark text-slate-500 text-[9px] font-black uppercase tracking-widest">Coming soon</span>
+                          )}
+                        </p>
+                        <p className="text-[11px] text-slate-400 font-medium leading-snug mt-0.5">{c.hint}</p>
+                      </div>
+                      {selected && !c.comingSoon && (
+                        <span className="material-symbols-outlined absolute top-3 right-3 text-primary text-lg">check_circle</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
               <p className="text-[11px] text-slate-400 font-bold mt-3 flex items-center gap-2">
                 <span className="material-symbols-outlined text-sm">info</span>
-                For the demo this links instantly. In production it opens the channel's OAuth connect.
+                Connect your Facebook & Instagram accounts under Connected Accounts to go live.
               </p>
             </div>
             <div className="flex justify-between pt-2">
@@ -246,12 +334,12 @@ const CreateAgent: React.FC = () => {
                 <span className="material-symbols-outlined text-3xl font-black">rocket_launch</span>
               </div>
               <h3 className="text-2xl font-black dark:text-white tracking-tight">{name || 'Your agent'} is ready</h3>
-              <p className="text-slate-500 font-medium mt-1">Take it live and it starts answering on {CHANNELS.find(c => c.value === channel)?.label} right away.</p>
+              <p className="text-slate-500 font-medium mt-1">Take it live and it starts answering on {channels.map(c => CHANNELS.find(x => x.value === c)?.label).filter(Boolean).join(' & ') || 'your channels'} right away.</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               {[
                 { label: 'Tone', value: TONES.find(t => t.value === tone)?.label },
-                { label: 'Channel', value: CHANNELS.find(c => c.value === channel)?.label },
+                { label: 'Channels', value: channels.map(c => CHANNELS.find(x => x.value === c)?.label).filter(Boolean).join(', ') || '—' },
                 { label: 'Knowledge', value: knowledge.trim() ? `${knowledge.trim().split(/\s+/).length} words` : 'None yet' },
                 { label: 'Business', value: businessType || '—' },
               ].map(s => (
