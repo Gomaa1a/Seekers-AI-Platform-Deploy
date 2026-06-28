@@ -161,12 +161,16 @@ export class MetaService {
         {},
         {
           params: {
+            // NOTE: 'comments' is NOT a valid Page field — Page comments arrive
+            // via 'feed'. Including it makes Graph reject the whole call (#100),
+            // leaving the Page subscribed to nothing.
             subscribed_fields: [
               'feed',
-              'comments',
               'messages',
               'message_echoes',
               'messaging_postbacks',
+              'message_deliveries',
+              'message_reads',
             ].join(','),
             access_token: pageToken,
           },

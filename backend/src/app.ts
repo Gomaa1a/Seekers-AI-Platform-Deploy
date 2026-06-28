@@ -32,6 +32,10 @@ import {
 // Create Express app
 const app: Application = express();
 
+// Behind Railway's proxy: trust the first hop so rate-limiting and client IPs
+// work correctly (fixes ERR_ERL_UNEXPECTED_X_FORWARDED_FOR).
+app.set('trust proxy', 1);
+
 // Create HTTP server for Socket.IO
 const httpServer: HTTPServer = createServer(app);
 
