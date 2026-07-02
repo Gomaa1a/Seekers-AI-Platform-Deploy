@@ -21,6 +21,14 @@ function verifyAndParse(req: Request): any | null {
       : JSON.stringify(req.body);
 
   if (!metaService.validateWebhookSignature(signature, rawBody)) {
+    // Diagnostic detail for 401s: shows whether the IG secret is even loaded,
+    // so a missing/unapplied Railway variable is distinguishable from a wrong value.
+    logger.warn('Webhook signature mismatch', {
+      path: req.path,
+      hasSignatureHeader: !!signature,
+      igSecretConfigured: !!config.meta.instagramAppSecret,
+      bodyIsBuffer: Buffer.isBuffer(req.body),
+    });
     return null;
   }
 
