@@ -258,6 +258,18 @@ Running record of launch work — append here as steps complete.
 - Reminder applied: set `META_API_VERSION=v23.0` in Railway variables
   (was v18.0 — harmless to boot, but v18 is sunset).
 
+**2026-07-02 (evening) — ✅ Compliant backend LIVE on Railway**
+- The in-process-migrations fix deployed successfully — first green deploy
+  since Jun 27. Verified on production:
+  `/health` → healthy · `/privacy-policy.html` → 200 ·
+  `/data-deletion.html` → 200 ·
+  `/api/meta/deletion-status?code=TEST` → "Unknown confirmation code"
+  (proves the real compliance code is serving, migrations 010–012 applied).
+- Known runtime follow-up: "(#100) nonexisting field (profile_pic…)" when
+  listing IG accounts — retest after `META_API_VERSION=v23.0` is set in
+  Railway variables; if it persists, confirm the IG account is a
+  Professional account and reconnect Meta to refresh scopes.
+
 **Next up** (see `docs/META_APP_REVIEW_CHECKLIST.md` §2–§5):
 Meta dashboard config (callback URLs, webhook fields, OAuth redirect URI) →
 Business Verification in Meta Business Suite → dev-mode end-to-end rehearsal →
