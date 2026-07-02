@@ -409,10 +409,13 @@ export class MetaService {
   }
 
   /**
-   * Get Instagram business account details
+   * Get the Instagram business account linked to a Facebook Page.
+   * Callers pass the PAGE id — the IG account is resolved through the page's
+   * instagram_business_account edge. (Querying the page id directly for IG
+   * fields fails with "(#100) nonexisting field".)
    */
   async getInstagramAccount(
-    igAccountId: string,
+    pageId: string,
     pageToken: string
   ): Promise<{
     id: string;
@@ -421,22 +424,25 @@ export class MetaService {
     followersCount: number;
   } | null> {
     try {
-      const response = await this.api.get(`/${igAccountId}`, {
+      const response = await this.api.get(`/${pageId}`, {
         params: {
           access_token: pageToken,
-          fields: 'id,username,profile_picture_url,followers_count',
+          fields: 'instagram_business_account{id,username,profile_picture_url,followers_count}',
         },
       });
 
+      const ig = response.data.instagram_business_account;
+      if (!ig) return null; // page has no linked IG professional account
+
       return {
-        id: response.data.id,
-        username: response.data.username,
-        profilePictureUrl: response.data.profile_picture_url || null,
-        followersCount: response.data.followers_count || 0,
+        id: ig.id,
+        username: ig.username,
+        profilePictureUrl: ig.profile_picture_url || null,
+        followersCount: ig.followers_count || 0,
       };
     } catch (error: any) {
       logger.error('Failed to get Instagram account', {
-        igAccountId,
+        pageId,
         error: error.response?.data || error.message,
       });
       return null;
