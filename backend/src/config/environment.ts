@@ -30,6 +30,10 @@ const envSchema = z.object({
   // Meta/Facebook
   META_APP_ID: z.string(),
   META_APP_SECRET: z.string(),
+  // The separate "Instagram app secret" (App Dashboard → Instagram API setup).
+  // Webhooks configured under the Instagram use case are signed with THIS
+  // secret, not the Facebook app secret — without it those events get 401.
+  INSTAGRAM_APP_SECRET: z.string().optional(),
   META_REDIRECT_URI: z.string().url(),
   META_WEBHOOK_VERIFY_TOKEN: z.string().min(32),
   META_API_VERSION: z.string().default('v23.0'),
@@ -143,6 +147,7 @@ export const config = {
   meta: {
     appId: env.META_APP_ID,
     appSecret: env.META_APP_SECRET,
+    instagramAppSecret: env.INSTAGRAM_APP_SECRET,
     redirectUri: env.META_REDIRECT_URI,
     webhookVerifyToken: env.META_WEBHOOK_VERIFY_TOKEN,
     apiVersion: env.META_API_VERSION,

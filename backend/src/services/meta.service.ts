@@ -317,26 +317,40 @@ export class MetaService {
   }
 
   /**
-   * Validate webhook signature from Meta
+   * Validate webhook signature from Meta.
+   * Tries the Facebook app secret AND the separate Instagram app secret:
+   * webhooks configured under the Instagram API use case are signed with the
+   * Instagram app's own secret, not the Facebook app's.
    */
   validateWebhookSignature(signature: string, payload: string): boolean {
     if (!signature) return false;
 
-    const expectedSignature = crypto
-      .createHmac('sha256', this.APP_SECRET)
-      .update(payload)
-      .digest('hex');
-
     const providedSignature = signature.replace('sha256=', '');
+    const secrets = [this.APP_SECRET, config.meta.instagramAppSecret].filter(
+      (s): s is string => !!s
+    );
 
-    try {
-      return crypto.timingSafeEqual(
-        Buffer.from(providedSignature),
-        Buffer.from(expectedSignature)
-      );
-    } catch {
-      return false;
+    for (const secret of secrets) {
+      const expectedSignature = crypto
+        .createHmac('sha256', secret)
+        .update(payload)
+        .digest('hex');
+
+      try {
+        if (
+          crypto.timingSafeEqual(
+            Buffer.from(providedSignature),
+            Buffer.from(expectedSignature)
+          )
+        ) {
+          return true;
+        }
+      } catch {
+        // length mismatch — try the next secret
+      }
     }
+
+    return false;
   }
 
   /**
