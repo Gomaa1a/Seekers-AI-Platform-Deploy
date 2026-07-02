@@ -6,6 +6,8 @@ import {
 } from '../types';
 import { agentService } from './agent.service';
 import { liveAgentService } from './liveAgent.service';
+import { metaService } from './meta.service';
+import { tokenService } from './token.service';
 
 export class WebhookRouterService {
   private readonly WEBHOOK_QUEUE_KEY = 'webhooks:queue';
@@ -41,6 +43,16 @@ export class WebhookRouterService {
         (platform === 'facebook' || platform === 'instagram')
       ) {
         const handled = await this.tryNativeAgent(page, platform, pageId, data);
+        if (handled) return;
+      }
+
+      // Native auto comment reply: the same self-serve agent also answers
+      // page/IG comments directly when active on the channel.
+      if (
+        eventType === 'comments' &&
+        (platform === 'facebook' || platform === 'instagram')
+      ) {
+        const handled = await this.tryNativeAgentComment(page, platform, pageId, data);
         if (handled) return;
       }
 
@@ -120,6 +132,94 @@ export class WebhookRouterService {
       messageId: message.mid,
     });
     return true;
+  }
+
+  /**
+   * Reply to a Facebook Page / Instagram comment with the org's active agent.
+   * Returns true when the event was handled natively (caller should stop) —
+   * including our own comments, which must never be answered or re-routed.
+   */
+  private async tryNativeAgentComment(
+    page: { id: string; organization_id: string; page_name: string },
+    platform: 'facebook' | 'instagram',
+    assetId: string,
+    data: any
+  ): Promise<boolean> {
+    // FB feed payload uses commentId/message; IG uses commentId/text.
+    const commentId = data?.commentId;
+    const text: string | undefined = data?.message ?? data?.text;
+    const fromId: string | undefined = data?.from?.id;
+
+    if (!commentId || !text) return false;
+
+    // Never answer the page's/account's own comments (incl. our own replies,
+    // which Meta echoes back as new comment events).
+    if (fromId && fromId === assetId) return true;
+
+    // Only react to newly added comments, not edits/deletes.
+    if (data?.verb && data.verb !== 'add') return true;
+
+    const agent = await agentService.getActiveAgentForChannel(
+      page.organization_id,
+      platform
+    );
+    if (!agent) return false; // fall back to n8n routing
+
+    let reply: string;
+    try {
+      reply = await agentService.generateReply(
+        agent,
+        `A customer commented on a ${platform} post: "${text}"\nWrite a short public reply to this comment.`,
+        []
+      );
+    } catch (error) {
+      logger.error('Native agent failed to generate comment reply', {
+        agentId: agent.id,
+        commentId,
+        error,
+      });
+      return true; // handled (failed) — don't double-route to n8n
+    }
+    if (!reply || !reply.trim()) return true;
+
+    const token = await this.getCommentSendToken(platform, assetId, page.id);
+    if (!token) {
+      logger.error('No access token available to reply to comment', { assetId, platform });
+      return true;
+    }
+
+    const sent = await metaService.replyToComment(token, commentId, reply);
+    logger.info('Native agent comment reply', {
+      organizationId: page.organization_id,
+      platform,
+      commentId,
+      sent,
+    });
+    return true;
+  }
+
+  /**
+   * Resolve the token used to reply to comments. Instagram comment replies
+   * use the linked Facebook Page token stored on the instagram_accounts row.
+   */
+  private async getCommentSendToken(
+    platform: 'facebook' | 'instagram',
+    assetId: string,
+    internalId: string
+  ): Promise<string | null> {
+    if (platform === 'facebook') {
+      return tokenService.getPageToken(assetId);
+    }
+    const row = await db.queryOne<{ access_token_encrypted: string }>(
+      `SELECT access_token_encrypted FROM instagram_accounts WHERE id = $1`,
+      [internalId]
+    );
+    if (!row) return null;
+    try {
+      return tokenService.decryptToken(row.access_token_encrypted);
+    } catch {
+      return null;
+    }
   }
 
   /**

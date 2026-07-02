@@ -25,7 +25,49 @@ export class MetaService {
   }
 
   /**
-   * Generate Meta OAuth URL with CSRF protection
+   * Sign an OAuth state value (CSRF protection). The state carries the
+   * organizationId plus an expiry, HMAC-signed with the app secret so the
+   * callback can prove the flow started on our server for that org.
+   * Format: base64url("orgId|expiresAtMs|hmac")
+   */
+  signState(organizationId: string): string {
+    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
+    const payload = `${organizationId}|${expiresAt}`;
+    const sig = crypto
+      .createHmac('sha256', this.APP_SECRET)
+      .update(payload)
+      .digest('hex');
+    return Buffer.from(`${payload}|${sig}`).toString('base64url');
+  }
+
+  /**
+   * Verify a signed OAuth state. Returns the organizationId, or null when
+   * the state is malformed, tampered with, or expired.
+   */
+  verifyState(state: string): string | null {
+    try {
+      const decoded = Buffer.from(state, 'base64url').toString('utf8');
+      const [organizationId, expiresAtStr, sig] = decoded.split('|');
+      if (!organizationId || !expiresAtStr || !sig) return null;
+
+      const payload = `${organizationId}|${expiresAtStr}`;
+      const expected = crypto
+        .createHmac('sha256', this.APP_SECRET)
+        .update(payload)
+        .digest('hex');
+
+      const valid = crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+      if (!valid) return null;
+      if (Date.now() > parseInt(expiresAtStr, 10)) return null;
+
+      return organizationId;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Generate Meta OAuth URL with CSRF protection (state must come from signState)
    */
   generateAuthUrl(state: string): string {
     const params = new URLSearchParams({

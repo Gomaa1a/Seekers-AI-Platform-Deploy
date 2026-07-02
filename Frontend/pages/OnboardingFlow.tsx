@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import Logo from '../components/Logo';
 import { metaService, knowledgeBasesService, workflowRequestsService, organizationService } from '../src/api';
 import { useAuth } from '../src/context/AuthContext';
-import { KnowledgeBase, MetaConnection } from '../src/types';
+import { KnowledgeBase } from '../src/types';
 
 const OnboardingFlow: React.FC = () => {
   const navigate = useNavigate();
@@ -15,7 +15,7 @@ const OnboardingFlow: React.FC = () => {
   // Meta connection state
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [metaConnection, setMetaConnection] = useState<MetaConnection | null>(null);
+  const [metaConnection, setMetaConnection] = useState<boolean>(false);
   
   // Knowledge base state
   const [kbName, setKbName] = useState('');
@@ -27,20 +27,24 @@ const OnboardingFlow: React.FC = () => {
   // Workflow request state
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Handle OAuth callback
+  // Surface the OAuth result. The backend completes the code exchange itself
+  // and redirects back with ?success=true or ?error=... — there is no
+  // client-side code/state handling.
   useEffect(() => {
-    const code = searchParams.get('code');
-    const state = searchParams.get('state');
     const error = searchParams.get('error');
-    
+    const success = searchParams.get('success');
+
     if (error) {
       setConnectionError('Facebook authorization was cancelled or denied.');
       setActiveStep(2);
       return;
     }
-    
-    if (code && state) {
-      handleOAuthCallback(code, state);
+
+    if (success) {
+      setMetaConnection(true);
+      setActiveStep(3);
+      // Clear URL params
+      window.history.replaceState({}, '', '/onboarding');
     }
   }, [searchParams]);
 
@@ -49,8 +53,8 @@ const OnboardingFlow: React.FC = () => {
     const checkConnection = async () => {
       try {
         const status = await metaService.getConnectionStatus();
-        if (status.connected && status.connection) {
-          setMetaConnection(status.connection);
+        if (status.connected) {
+          setMetaConnection(true);
           // Skip to step 3 if already connected
           if (activeStep === 2) {
             setActiveStep(3);
@@ -62,22 +66,6 @@ const OnboardingFlow: React.FC = () => {
     };
     checkConnection();
   }, []);
-
-  const handleOAuthCallback = async (code: string, state: string) => {
-    setIsConnecting(true);
-    setConnectionError(null);
-    try {
-      const response = await metaService.handleOAuthCallback(code, state);
-      setMetaConnection(response.connection);
-      setActiveStep(3);
-      // Clear URL params
-      window.history.replaceState({}, '', '/onboarding');
-    } catch (err: any) {
-      setConnectionError(err.response?.data?.error || 'Failed to complete Facebook connection');
-    } finally {
-      setIsConnecting(false);
-    }
-  };
 
   const handleMetaConnect = async () => {
     setIsConnecting(true);

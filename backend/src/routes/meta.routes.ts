@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { metaService, tokenService, organizationService, notificationService, freeTierService } from '../services';
+import { metaComplianceService } from '../services/metaCompliance.service';
 import { authenticate } from '../middleware';
 import { asyncHandler } from '../utils/helpers';
 import { config, logger } from '../config';
@@ -15,8 +16,8 @@ router.get(
   '/oauth/url',
   authenticate,
   asyncHandler(async (req, res) => {
-    // Use organizationId as state for CSRF protection
-    const state = req.user!.organizationId;
+    // HMAC-signed state (orgId + expiry) for CSRF protection
+    const state = metaService.signState(req.user!.organizationId);
     const url = metaService.generateAuthUrl(state);
 
     res.json({
@@ -36,11 +37,13 @@ router.get(
   asyncHandler(async (req, res) => {
     const { code, state, error, error_description } = req.query;
 
+    // The Connected Accounts page (/accounts) reads success/error from the URL.
     const frontend = config.app.frontendUrl;
+    const accountsUrl = `${frontend}/accounts`;
 
     if (error) {
       res.redirect(
-        `${frontend}/dashboard/settings/integrations?error=${encodeURIComponent(
+        `${accountsUrl}?error=${encodeURIComponent(
           error_description as string || error as string
         )}`
       );
@@ -48,12 +51,17 @@ router.get(
     }
 
     if (!code || !state) {
-      res.redirect(`${frontend}/dashboard/settings/integrations?error=Missing%20parameters`);
+      res.redirect(`${accountsUrl}?error=Missing%20parameters`);
       return;
     }
 
-    // State contains organizationId
-    const organizationId = state as string;
+    // Verify the signed state (CSRF protection) and recover the organization
+    const organizationId = metaService.verifyState(state as string);
+    if (!organizationId) {
+      logger.warn('Meta OAuth callback with invalid or expired state');
+      res.redirect(`${accountsUrl}?error=${encodeURIComponent('Invalid or expired sign-in state. Please try connecting again.')}`);
+      return;
+    }
 
     try {
       // Exchange code for tokens
@@ -74,16 +82,16 @@ router.get(
         longLivedToken.expires_in,
         userInfo.id,
         userInfo.name,
-        ['pages_show_list', 'pages_read_engagement', 'pages_manage_metadata', 'instagram_basic', 'instagram_manage_messages']
+        [...config.meta.requiredScopes]
       );
 
       // Notify admins
       await notificationService.notifyMetaConnected(organizationId, 'Meta');
 
-      res.redirect(`${frontend}/dashboard/settings/integrations?success=true`);
+      res.redirect(`${accountsUrl}?success=true`);
     } catch (error: any) {
       res.redirect(
-        `${frontend}/dashboard/settings/integrations?error=${encodeURIComponent(error.message)}`
+        `${accountsUrl}?error=${encodeURIComponent(error.message)}`
       );
     }
   })
@@ -455,20 +463,17 @@ router.post(
         return;
       }
 
-      // Find and deactivate all pages/accounts for this Meta user
       // The user_id in the signed request is the Meta user ID
       const metaUserId = data.user_id;
-
-      // Log the deauthorization
       logger.info('Meta deauthorization callback received', { metaUserId });
 
-      // Find organizations with this Meta user and deactivate their connections
-      // This is a best-effort cleanup - we may not have the exact mapping
-      // Real implementation would need a meta_user_id column in organizations table
+      // Delete tokens and deactivate the connected pages/IG accounts
+      const result = await metaComplianceService.handleDeauthorize(metaUserId);
 
       res.json({
         success: true,
         message: 'Deauthorization processed',
+        organizations: result.organizations,
       });
     } catch (error: any) {
       logger.error('Failed to process Meta deauthorization', { error: error.message });
@@ -512,24 +517,14 @@ router.post(
       }
 
       const metaUserId = data.user_id;
-      
-      // Generate a unique confirmation code for this deletion request
-      const confirmationCode = `DEL-${Date.now()}-${metaUserId.substring(0, 8)}`;
-      
-      // Log the deletion request
-      logger.info('Meta data deletion request received', { 
-        metaUserId,
-        confirmationCode,
-      });
+      logger.info('Meta data deletion request received', { metaUserId });
 
-      // In a real implementation, you would:
-      // 1. Queue the deletion request for processing
-      // 2. Delete all user data associated with this Meta user ID
-      // 3. Store the confirmation code for status checks
+      // Delete all Meta-derived data for this user and persist the request
+      const { confirmationCode } = await metaComplianceService.handleDeletionRequest(metaUserId);
 
       // Meta expects this specific response format
       const statusUrl = `${config.app.apiBaseUrl}/api/meta/deletion-status?code=${confirmationCode}`;
-      
+
       res.json({
         url: statusUrl,
         confirmation_code: confirmationCode,
@@ -562,14 +557,23 @@ router.get(
       return;
     }
 
-    // In a real implementation, look up the deletion request status
-    // For now, we'll return a completed status
+    const status = await metaComplianceService.getDeletionStatus(code as string);
+
+    if (!status) {
+      res.status(404).json({
+        success: false,
+        message: 'Unknown confirmation code',
+      });
+      return;
+    }
+
     res.json({
       success: true,
       data: {
-        confirmation_code: code,
-        status: 'completed',
-        message: 'All user data has been deleted',
+        confirmation_code: status.confirmationCode,
+        status: status.status,
+        requested_at: status.requestedAt,
+        completed_at: status.completedAt,
       },
     });
   })

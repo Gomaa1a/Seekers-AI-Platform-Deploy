@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { agentService } from '../src/api';
-import type { AgentChannel, AgentTone } from '../src/api';
+import type { AgentChannel, AgentTone, LlmProvider } from '../src/api';
 import AgentTestChat from '../components/AgentTestChat';
 
 const TONES: { value: AgentTone; label: string; icon: string }[] = [
@@ -27,6 +27,15 @@ const CHANNELS: {
 
 const STEPS = ['Basics', 'Knowledge', 'Test', 'Channel', 'Go live'];
 
+// Bring-your-own-LLM options. 'platform' uses Seekers' shared AI at no setup.
+const LLM_PROVIDERS: { value: LlmProvider; label: string; hint: string; modelPlaceholder?: string }[] = [
+  { value: 'platform', label: 'Seekers AI', hint: 'Default — no setup needed' },
+  { value: 'openai', label: 'OpenAI', hint: 'Your OpenAI API key', modelPlaceholder: 'gpt-4o-mini' },
+  { value: 'anthropic', label: 'Anthropic', hint: 'Your Claude API key', modelPlaceholder: 'claude-haiku-4-5' },
+  { value: 'gemini', label: 'Google Gemini', hint: 'Your Gemini API key', modelPlaceholder: 'gemini-2.5-flash' },
+  { value: 'custom', label: 'Custom', hint: 'Any OpenAI-compatible endpoint', modelPlaceholder: 'model name' },
+];
+
 const CreateAgent: React.FC = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
@@ -43,6 +52,12 @@ const CreateAgent: React.FC = () => {
   const [systemPrompt, setSystemPrompt] = useState('');
   const [generatingPersona, setGeneratingPersona] = useState(false);
   const [channels, setChannels] = useState<AgentChannel[]>(['facebook']);
+
+  // Bring-your-own-LLM (optional)
+  const [llmProvider, setLlmProvider] = useState<LlmProvider>('platform');
+  const [llmApiKey, setLlmApiKey] = useState('');
+  const [llmModel, setLlmModel] = useState('');
+  const [llmBaseUrl, setLlmBaseUrl] = useState('');
 
   const toggleChannel = (value: AgentChannel) => {
     setChannels((prev) =>
@@ -92,14 +107,30 @@ const CreateAgent: React.FC = () => {
     } finally { setSaving(false); }
   };
 
-  // Step 2 -> attach knowledge
+  // Step 2 -> attach knowledge (+ optional own-LLM settings)
   const submitKnowledge = async () => {
     if (!agentId) return;
+    if (llmProvider !== 'platform' && !llmApiKey.trim()) {
+      setError('Add your API key, or switch back to Seekers AI.');
+      return;
+    }
+    if (llmProvider === 'custom' && !llmBaseUrl.trim()) {
+      setError('A base URL is required for a custom AI endpoint.');
+      return;
+    }
     setSaving(true); setError(null);
     try {
       await agentService.update(agentId, {
         knowledge,
         ...(systemPrompt.trim() ? { systemPrompt } : {}),
+        llmProvider,
+        ...(llmProvider !== 'platform'
+          ? {
+              ...(llmApiKey.trim() ? { llmApiKey: llmApiKey.trim() } : {}),
+              llmModel: llmModel.trim() || null,
+              llmBaseUrl: llmBaseUrl.trim() || null,
+            }
+          : {}),
       });
       go(3);
     } catch (e: any) {
@@ -247,6 +278,51 @@ const CreateAgent: React.FC = () => {
               </div>
               {systemPrompt && (
                 <textarea className={`${inputCls} min-h-[140px] resize-y leading-relaxed`} value={systemPrompt} onChange={e => setSystemPrompt(e.target.value)} />
+              )}
+            </div>
+
+            {/* Bring your own AI model (optional) */}
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-background-dark border border-slate-100 dark:border-border-dark">
+              <div className="mb-3">
+                <p className="text-sm font-black dark:text-white">AI model <span className="text-slate-400 font-bold">(optional)</span></p>
+                <p className="text-[11px] text-slate-400 font-medium">
+                  Your agent runs on Seekers AI by default — or plug in your own LLM API key and stay in full control of the model and its costs.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {LLM_PROVIDERS.map(p => (
+                  <button key={p.value} type="button" onClick={() => setLlmProvider(p.value)} title={p.hint}
+                    className={`px-4 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${llmProvider === p.value ? 'bg-primary/10 border-primary text-primary' : 'border-slate-200 dark:border-border-dark text-slate-400 hover:border-primary/50'}`}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              {llmProvider !== 'platform' && (
+                <div className="space-y-3 animate-in fade-in duration-200">
+                  <div>
+                    <label className={labelCls}>API key</label>
+                    <input type="password" className={inputCls} value={llmApiKey} onChange={e => setLlmApiKey(e.target.value)}
+                      placeholder="Paste your API key — stored encrypted, never shown again" autoComplete="off" />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelCls}>Model (optional)</label>
+                      <input className={inputCls} value={llmModel} onChange={e => setLlmModel(e.target.value)}
+                        placeholder={LLM_PROVIDERS.find(p => p.value === llmProvider)?.modelPlaceholder} />
+                    </div>
+                    {llmProvider === 'custom' && (
+                      <div>
+                        <label className={labelCls}>Base URL</label>
+                        <input className={inputCls} value={llmBaseUrl} onChange={e => setLlmBaseUrl(e.target.value)}
+                          placeholder="https://your-endpoint.com/v1" />
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 font-bold flex items-center gap-2">
+                    <span className="material-symbols-outlined text-sm">lock</span>
+                    Your key is encrypted at rest (AES-256) and only used to answer your customers.
+                  </p>
+                </div>
               )}
             </div>
 

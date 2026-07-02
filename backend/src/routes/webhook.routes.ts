@@ -1,11 +1,36 @@
-import { Router } from 'express';
-import crypto from 'crypto';
-import { webhookRouterService } from '../services';
+import { Router, Request } from 'express';
+import { metaService } from '../services';
 import { enqueueWebhook } from '../workers/webhookProcessor';
 import { config, logger } from '../config';
 import { asyncHandler } from '../utils/helpers';
 
 const router = Router();
+
+/**
+ * app.ts mounts express.raw() on /api/webhooks so req.body is the raw Buffer —
+ * Meta's HMAC signature must be computed over the exact bytes it sent, not a
+ * re-serialized object. Verify against the raw payload, then parse it.
+ * Returns the parsed body, or null when the signature (or JSON) is invalid.
+ */
+function verifyAndParse(req: Request): any | null {
+  const signature = req.headers['x-hub-signature-256'] as string;
+  const rawBody: string = Buffer.isBuffer(req.body)
+    ? req.body.toString('utf8')
+    : typeof req.body === 'string'
+      ? req.body
+      : JSON.stringify(req.body);
+
+  if (!metaService.validateWebhookSignature(signature, rawBody)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawBody);
+  } catch {
+    logger.warn('Meta webhook payload is not valid JSON');
+    return null;
+  }
+}
 
 /**
  * @route   GET /api/webhooks/meta
@@ -37,16 +62,13 @@ router.get(
 router.post(
   '/meta',
   asyncHandler(async (req, res) => {
-    // Verify signature
-    const signature = req.headers['x-hub-signature-256'] as string;
-    
-    if (!verifyMetaSignature(req.body, signature)) {
+    const body = verifyAndParse(req);
+
+    if (!body) {
       logger.warn('Invalid Meta webhook signature');
       res.sendStatus(401);
       return;
     }
-
-    const body = req.body;
 
     // Respond immediately to acknowledge receipt
     res.sendStatus(200);
@@ -88,16 +110,13 @@ router.get(
 router.post(
   '/instagram',
   asyncHandler(async (req, res) => {
-    // Verify signature
-    const signature = req.headers['x-hub-signature-256'] as string;
-    
-    if (!verifyMetaSignature(req.body, signature)) {
+    const body = verifyAndParse(req);
+
+    if (!body) {
       logger.warn('Invalid Instagram webhook signature');
       res.sendStatus(401);
       return;
     }
-
-    const body = req.body;
 
     // Respond immediately to acknowledge receipt
     res.sendStatus(200);
@@ -108,20 +127,6 @@ router.post(
     });
   })
 );
-
-/**
- * Verify Meta webhook signature
- */
-function verifyMetaSignature(payload: any, signature: string): boolean {
-  if (!signature) return false;
-
-  const expectedSignature = crypto
-    .createHmac('sha256', config.meta.appSecret)
-    .update(JSON.stringify(payload))
-    .digest('hex');
-
-  return signature === `sha256=${expectedSignature}`;
-}
 
 /**
  * Process Facebook/Messenger webhook events

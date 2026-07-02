@@ -34,17 +34,19 @@ export class TokenService {
 
     const result = await db.queryOne<{ id: string }>(
       `INSERT INTO meta_tokens
-       (organization_id, access_token_encrypted, token_type, expires_at, scopes)
-       VALUES ($1, $2, 'user_token', $3, $4)
+       (organization_id, access_token_encrypted, token_type, expires_at, scopes, meta_user_id, meta_user_name)
+       VALUES ($1, $2, 'user_token', $3, $4, $5, $6)
        ON CONFLICT (organization_id)
        DO UPDATE SET
          access_token_encrypted = EXCLUDED.access_token_encrypted,
          token_type = 'user_token',
          expires_at = EXCLUDED.expires_at,
          scopes = EXCLUDED.scopes,
+         meta_user_id = COALESCE(NULLIF(EXCLUDED.meta_user_id, ''), meta_tokens.meta_user_id),
+         meta_user_name = COALESCE(NULLIF(EXCLUDED.meta_user_name, ''), meta_tokens.meta_user_name),
          updated_at = NOW()
        RETURNING id`,
-      [organizationId, encrypted, expiresAt, scopes]
+      [organizationId, encrypted, expiresAt, scopes, metaUserId || '', metaUserName || '']
     );
 
     logger.info('User token stored', { organizationId, metaUserId });
@@ -106,11 +108,11 @@ export class TokenService {
     followersCount?: number
   ): Promise<string> {
     const result = await db.queryOne<{ id: string }>(
-      `INSERT INTO instagram_accounts 
-       (organization_id, facebook_page_id, instagram_business_account_id, username, profile_picture_url, followers_count)
+      `INSERT INTO instagram_accounts
+       (organization_id, facebook_page_id, instagram_id, username, profile_picture_url, followers_count)
        VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (instagram_business_account_id) 
-       DO UPDATE SET 
+       ON CONFLICT (instagram_id)
+       DO UPDATE SET
          username = EXCLUDED.username,
          profile_picture_url = EXCLUDED.profile_picture_url,
          followers_count = EXCLUDED.followers_count,
@@ -235,7 +237,7 @@ export class TokenService {
    */
   async updateInstagramWebhookStatus(igId: string, subscribed: boolean): Promise<void> {
     await db.query(
-      'UPDATE instagram_accounts SET webhook_subscribed = $1 WHERE instagram_business_account_id = $2',
+      'UPDATE instagram_accounts SET webhook_subscribed = $1 WHERE instagram_id = $2',
       [subscribed, igId]
     );
   }
@@ -264,7 +266,7 @@ export class TokenService {
    */
   async deleteInstagramAccount(igId: string): Promise<void> {
     await db.query(
-      'DELETE FROM instagram_accounts WHERE instagram_business_account_id = $1',
+      'DELETE FROM instagram_accounts WHERE instagram_id = $1',
       [igId]
     );
 
@@ -286,7 +288,7 @@ export class TokenService {
    */
   async toggleInstagramStatus(igId: string, isActive: boolean): Promise<void> {
     await db.query(
-      'UPDATE instagram_accounts SET is_active = $1 WHERE instagram_business_account_id = $2',
+      'UPDATE instagram_accounts SET is_active = $1 WHERE instagram_id = $2',
       [isActive, igId]
     );
   }

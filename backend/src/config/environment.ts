@@ -32,7 +32,7 @@ const envSchema = z.object({
   META_APP_SECRET: z.string(),
   META_REDIRECT_URI: z.string().url(),
   META_WEBHOOK_VERIFY_TOKEN: z.string().min(32),
-  META_API_VERSION: z.string().default('v18.0'),
+  META_API_VERSION: z.string().default('v23.0'),
 
   // JWT
   JWT_SECRET: z.string().min(32),
@@ -147,17 +147,20 @@ export const config = {
     webhookVerifyToken: env.META_WEBHOOK_VERIFY_TOKEN,
     apiVersion: env.META_API_VERSION,
     graphApiBaseUrl: `https://graph.facebook.com/${env.META_API_VERSION}`,
+    // Every scope here must be individually justified (with a screencast) in
+    // Meta App Review — do NOT add scopes the product doesn't demonstrably use.
+    // business_management was removed on purpose: we list pages via /me/accounts,
+    // not the Business Manager API.
     requiredScopes: [
-      'pages_show_list',
-      'pages_read_engagement',
-      'pages_manage_metadata',
-      'pages_manage_engagement',
-      'pages_messaging',
-      'pages_read_user_content',
-      'instagram_basic',
-      'instagram_manage_messages',
-      'instagram_manage_comments',
-      'business_management',
+      'pages_show_list',          // list the user's pages in the page picker
+      'pages_read_engagement',    // read page content/engagement
+      'pages_manage_metadata',    // subscribe the page to webhooks
+      'pages_manage_engagement',  // reply to comments on page posts
+      'pages_messaging',          // send/receive Messenger messages
+      'pages_read_user_content',  // read user comments on the page
+      'instagram_basic',          // read the linked IG business account
+      'instagram_manage_messages',// send/receive Instagram DMs
+      'instagram_manage_comments',// reply to Instagram comments
       'public_profile',
     ],
   },

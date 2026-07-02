@@ -1,5 +1,7 @@
+import axios from 'axios';
 import { db, logger, config } from '../config';
 import { geminiService } from './gemini.service';
+import { encrypt, decrypt } from '../utils/encryption';
 
 // ============================================
 // Types
@@ -13,6 +15,9 @@ export type AgentTone =
   | 'empathetic';
 export type AgentChannel = 'web' | 'facebook' | 'instagram' | 'whatsapp';
 export type AgentStatus = 'draft' | 'active' | 'paused';
+// 'platform' = the platform's shared Claude/Gemini keys (default).
+// Everything else is Bring-Your-Own-LLM: the org's own key, stored encrypted.
+export type LlmProvider = 'platform' | 'anthropic' | 'openai' | 'gemini' | 'custom';
 
 export interface AiAgent {
   id: string;
@@ -38,6 +43,21 @@ export interface AiAgent {
   created_by: string | null;
   created_at: Date;
   updated_at: Date;
+  // Bring-Your-Own-LLM (migration 012)
+  llm_provider: LlmProvider;
+  llm_model: string | null;
+  llm_api_key_encrypted: string | null;
+  llm_base_url: string | null;
+}
+
+/** Agent shape safe to return from the API: the encrypted key never leaves. */
+export type PublicAiAgent = Omit<AiAgent, 'llm_api_key_encrypted'> & {
+  llm_key_set: boolean;
+};
+
+export function sanitizeAgent(agent: AiAgent): PublicAiAgent {
+  const { llm_api_key_encrypted, ...rest } = agent;
+  return { ...rest, llm_key_set: !!llm_api_key_encrypted };
 }
 
 export interface CreateAgentInput {
@@ -55,6 +75,12 @@ export interface CreateAgentInput {
   emotionDetection?: boolean;
   leadExtraction?: boolean;
   humanHandoff?: boolean;
+  // BYO-LLM: llmApiKey is write-only (encrypted at rest, never returned).
+  // Pass llmApiKey: null (or llmProvider: 'platform') to clear it.
+  llmProvider?: LlmProvider;
+  llmModel?: string | null;
+  llmApiKey?: string | null;
+  llmBaseUrl?: string | null;
 }
 
 export type UpdateAgentInput = Partial<CreateAgentInput> & {
@@ -63,6 +89,14 @@ export type UpdateAgentInput = Partial<CreateAgentInput> & {
 
 const TONES: AgentTone[] = ['friendly', 'professional', 'casual', 'formal', 'empathetic'];
 const CHANNELS: AgentChannel[] = ['web', 'facebook', 'instagram', 'whatsapp'];
+const LLM_PROVIDERS: LlmProvider[] = ['platform', 'anthropic', 'openai', 'gemini', 'custom'];
+
+// Sensible defaults when the client picks a provider but no model.
+const DEFAULT_MODELS: Record<Exclude<LlmProvider, 'platform' | 'custom'>, string> = {
+  anthropic: 'claude-haiku-4-5',
+  openai: 'gpt-4o-mini',
+  gemini: 'gemini-2.5-flash',
+};
 
 /**
  * Validate + de-duplicate a list of channels. Throws on an unknown channel.
@@ -115,6 +149,7 @@ export class AgentService {
     if (input.channel && !CHANNELS.includes(input.channel)) {
       throw new Error('Invalid channel');
     }
+    this.validateLlmInput(input);
     const channels = normalizeChannels(input.channels);
     // Primary channel: explicit `channel`, else first of `channels`, else web.
     const primaryChannel = input.channel || channels[0] || 'web';
@@ -122,8 +157,9 @@ export class AgentService {
     const agent = await db.queryOne<AiAgent>(
       `INSERT INTO ai_agents
          (organization_id, name, description, business_type, tone, greeting, language,
-          channel, channels, knowledge, knowledge_base_id, emotion_detection, lead_extraction, human_handoff, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          channel, channels, knowledge, knowledge_base_id, emotion_detection, lead_extraction, human_handoff, created_by,
+          llm_provider, llm_model, llm_api_key_encrypted, llm_base_url)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
        RETURNING *`,
       [
         organizationId,
@@ -141,6 +177,10 @@ export class AgentService {
         input.leadExtraction ?? true,
         input.humanHandoff ?? true,
         userId,
+        input.llmProvider || 'platform',
+        input.llmModel || null,
+        input.llmApiKey ? encrypt(input.llmApiKey) : null,
+        input.llmBaseUrl || null,
       ]
     );
 
@@ -164,12 +204,21 @@ export class AgentService {
     if (!current) {
       throw new Error('Agent not found');
     }
+    this.validateLlmInput(input);
 
     const channels =
       input.channels !== undefined ? normalizeChannels(input.channels) : undefined;
     // Keep the primary `channel` consistent with the selected channels.
     const primaryChannel =
       input.channel ?? (channels && channels.length > 0 ? channels[0] : undefined);
+
+    // BYO-LLM key is write-only: undefined = keep, null/'' = clear, string = replace.
+    const llmKeyEncrypted =
+      input.llmApiKey === undefined
+        ? undefined
+        : input.llmApiKey
+          ? encrypt(input.llmApiKey)
+          : null;
 
     const fieldMap: Record<string, any> = {
       name: input.name,
@@ -187,7 +236,16 @@ export class AgentService {
       emotion_detection: input.emotionDetection,
       lead_extraction: input.leadExtraction,
       human_handoff: input.humanHandoff,
+      llm_provider: input.llmProvider,
+      llm_model: input.llmModel,
+      llm_base_url: input.llmBaseUrl,
     };
+
+    // null must pass through to clear the key, so it can't live in fieldMap's
+    // undefined-skipping loop with the same semantics — handle explicitly.
+    if (llmKeyEncrypted !== undefined) {
+      fieldMap.llm_api_key_encrypted = llmKeyEncrypted;
+    }
 
     const updates: string[] = [];
     const values: any[] = [];
@@ -371,9 +429,129 @@ export class AgentService {
   }
 
   /**
+   * Validate BYO-LLM input on create/update.
+   */
+  private validateLlmInput(input: CreateAgentInput | UpdateAgentInput): void {
+    if (input.llmProvider && !LLM_PROVIDERS.includes(input.llmProvider)) {
+      throw new Error(`Invalid LLM provider: ${input.llmProvider}`);
+    }
+    if (input.llmProvider === 'custom' && !input.llmBaseUrl) {
+      throw new Error('A base URL is required for a custom LLM provider');
+    }
+    if (input.llmProvider && input.llmProvider !== 'platform' && input.llmApiKey === null) {
+      throw new Error('An API key is required when using your own LLM provider');
+    }
+  }
+
+  /**
+   * Bring-Your-Own-LLM: generate a reply using the organization's own key.
+   * Returns null when the agent has no usable BYO config or the call fails,
+   * so the caller can fall back to the platform engines.
+   */
+  private async produceByoReply(
+    agent: AiAgent,
+    systemPrompt: string,
+    message: string,
+    history: { role: 'user' | 'assistant'; content: string }[]
+  ): Promise<string | null> {
+    if (agent.llm_provider === 'platform' || !agent.llm_api_key_encrypted) return null;
+
+    let apiKey: string;
+    try {
+      apiKey = decrypt(agent.llm_api_key_encrypted);
+    } catch (error) {
+      logger.error('BYO-LLM: could not decrypt the client API key', { agentId: agent.id });
+      return null;
+    }
+
+    const provider = agent.llm_provider;
+    const model =
+      agent.llm_model ||
+      (provider !== 'custom' ? DEFAULT_MODELS[provider as keyof typeof DEFAULT_MODELS] : null);
+
+    try {
+      if (provider === 'anthropic') {
+        const Anthropic = (await import('@anthropic-ai/sdk')).default;
+        const client = new Anthropic({ apiKey });
+        const response = await client.messages.create({
+          model: model || 'claude-haiku-4-5',
+          max_tokens: 1024,
+          system: systemPrompt,
+          messages: [
+            ...history.map((m) => ({ role: m.role, content: m.content })),
+            { role: 'user' as const, content: message },
+          ],
+        });
+        return response.content
+          .filter((b: any) => b.type === 'text')
+          .map((b: any) => b.text)
+          .join('\n')
+          .trim() || null;
+      }
+
+      if (provider === 'openai' || provider === 'custom') {
+        // OpenAI or any OpenAI-compatible endpoint (llm_base_url).
+        const baseUrl = (agent.llm_base_url || 'https://api.openai.com/v1').replace(/\/$/, '');
+        const response = await axios.post(
+          `${baseUrl}/chat/completions`,
+          {
+            model: model || 'gpt-4o-mini',
+            max_tokens: 1024,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              ...history.map((m) => ({
+                role: m.role === 'assistant' ? 'assistant' : 'user',
+                content: m.content,
+              })),
+              { role: 'user', content: message },
+            ],
+          },
+          {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            timeout: 30000,
+          }
+        );
+        return response.data?.choices?.[0]?.message?.content?.trim() || null;
+      }
+
+      if (provider === 'gemini') {
+        const response = await axios.post(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model || 'gemini-2.5-flash'}:generateContent`,
+          {
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: [
+              ...history.map((m) => ({
+                role: m.role === 'assistant' ? 'model' : 'user',
+                parts: [{ text: m.content }],
+              })),
+              { role: 'user', parts: [{ text: message }] },
+            ],
+          },
+          {
+            headers: { 'x-goog-api-key': apiKey },
+            timeout: 30000,
+          }
+        );
+        const text = response.data?.candidates?.[0]?.content?.parts
+          ?.map((p: any) => p.text)
+          .join('')
+          .trim();
+        return text || null;
+      }
+    } catch (error: any) {
+      logger.error('BYO-LLM reply failed, falling back to platform engines', {
+        agentId: agent.id,
+        provider,
+        error: error.response?.data?.error?.message || error.message,
+      });
+    }
+    return null;
+  }
+
+  /**
    * Core reply generation shared by the in-app playground and the live
-   * channels. Uses Claude (cheap-but-good: Haiku 4.5 by default) when an
-   * ANTHROPIC_API_KEY is configured, otherwise a knowledge-based mock.
+   * channels. Order: the org's own LLM (BYO), then platform Claude
+   * (cheap-but-good: Haiku 4.5 by default), then Gemini, then a mock.
    */
   private async produceReply(
     agent: AiAgent,
@@ -384,6 +562,10 @@ export class AgentService {
     // from everything it has been given.
     const knowledge = await this.resolveKnowledge(agent);
     const systemPrompt = this.buildSystemPrompt(agent, knowledge);
+
+    // 0) The organization's own LLM, when configured (BYO-LLM).
+    const byoReply = await this.produceByoReply(agent, systemPrompt, message, history);
+    if (byoReply) return { reply: byoReply, mode: 'live' };
 
     // 1) Claude (cheap-but-good) when an Anthropic key is configured.
     if (config.ai.anthropicApiKey) {

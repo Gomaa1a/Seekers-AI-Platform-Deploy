@@ -30,6 +30,7 @@ export type {
   AgentTone,
   AgentChannel,
   AgentStatus,
+  LlmProvider,
   CreateAgentData,
   UpdateAgentData,
   AgentStats,

@@ -12,6 +12,8 @@ export type AgentTone =
   | 'empathetic';
 export type AgentChannel = 'web' | 'facebook' | 'instagram' | 'whatsapp';
 export type AgentStatus = 'draft' | 'active' | 'paused';
+// 'platform' = Seekers' shared AI. Anything else = the client's own LLM key.
+export type LlmProvider = 'platform' | 'anthropic' | 'openai' | 'gemini' | 'custom';
 
 export interface AiAgent {
   id: string;
@@ -36,6 +38,11 @@ export interface AiAgent {
   activated_at: string | null;
   created_at: string;
   updated_at: string;
+  // BYO-LLM — the API key itself is write-only and never returned
+  llm_provider: LlmProvider;
+  llm_model: string | null;
+  llm_base_url: string | null;
+  llm_key_set: boolean;
 }
 
 export interface CreateAgentData {
@@ -53,6 +60,11 @@ export interface CreateAgentData {
   emotionDetection?: boolean;
   leadExtraction?: boolean;
   humanHandoff?: boolean;
+  // BYO-LLM: pass llmApiKey to set the org's own key, null to clear it
+  llmProvider?: LlmProvider;
+  llmModel?: string | null;
+  llmApiKey?: string | null;
+  llmBaseUrl?: string | null;
 }
 
 export type UpdateAgentData = Partial<CreateAgentData> & {

@@ -41,12 +41,12 @@ REDIS_DB=0
 API_BASE_URL=https://PUBLIC_DOMAIN
 FRONTEND_URL=https://YOUR_FRONTEND_DOMAIN
 CORS_ORIGIN=https://YOUR_FRONTEND_DOMAIN
-META_REDIRECT_URI=https://PUBLIC_DOMAIN/api/meta/callback
+META_REDIRECT_URI=https://PUBLIC_DOMAIN/api/meta/oauth/callback
 
 # --- Meta app credentials (from developers.facebook.com → your app) ---
 META_APP_ID=your_meta_app_id
 META_APP_SECRET=your_meta_app_secret
-META_API_VERSION=v18.0
+META_API_VERSION=v23.0
 
 # --- Secrets: see the gitignored file backend/.railway-secrets.local ---
 # (Never commit real secret values. Generate with:

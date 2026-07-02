@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { agentService } from '../services/agent.service';
+import { agentService, sanitizeAgent } from '../services/agent.service';
 import { authenticate } from '../middleware';
 import { asyncHandler } from '../utils/helpers';
 
@@ -29,7 +29,7 @@ router.get(
   authenticate,
   asyncHandler(async (req, res) => {
     const agents = await agentService.getAll(req.user!.organizationId);
-    res.json({ success: true, data: agents });
+    res.json({ success: true, data: agents.map(sanitizeAgent) });
   })
 );
 
@@ -47,7 +47,7 @@ router.get(
       res.status(404).json({ success: false, message: 'Agent not found' });
       return;
     }
-    res.json({ success: true, data: agent });
+    res.json({ success: true, data: sanitizeAgent(agent) });
   })
 );
 
@@ -68,7 +68,7 @@ router.post(
     res.status(201).json({
       success: true,
       message: 'Agent created successfully',
-      data: agent,
+      data: sanitizeAgent(agent),
     });
   })
 );
@@ -87,7 +87,7 @@ router.put(
       req.user!.organizationId,
       req.body
     );
-    res.json({ success: true, message: 'Agent updated successfully', data: agent });
+    res.json({ success: true, message: 'Agent updated successfully', data: sanitizeAgent(agent) });
   })
 );
 
@@ -126,7 +126,7 @@ router.post(
       channels: Array.isArray(channels) ? channels : undefined,
       channelConnected: true,
     });
-    res.json({ success: true, message: 'Channel connected', data: agent });
+    res.json({ success: true, message: 'Channel connected', data: sanitizeAgent(agent) });
   })
 );
 
@@ -143,7 +143,7 @@ router.post(
       req.params.id,
       req.user!.organizationId
     );
-    res.json({ success: true, message: 'Persona generated', data: agent });
+    res.json({ success: true, message: 'Persona generated', data: sanitizeAgent(agent) });
   })
 );
 
@@ -161,7 +161,7 @@ router.post(
       req.user!.organizationId,
       'active'
     );
-    res.json({ success: true, message: 'Agent is live', data: agent });
+    res.json({ success: true, message: 'Agent is live', data: sanitizeAgent(agent) });
   })
 );
 
@@ -179,7 +179,7 @@ router.post(
       req.user!.organizationId,
       'paused'
     );
-    res.json({ success: true, message: 'Agent paused', data: agent });
+    res.json({ success: true, message: 'Agent paused', data: sanitizeAgent(agent) });
   })
 );
 
