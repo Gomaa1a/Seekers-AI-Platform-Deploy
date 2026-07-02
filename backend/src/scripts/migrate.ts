@@ -16,6 +16,14 @@ dotenv.config();
 
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres123@localhost:5432/seekers_saas';
 
+/**
+ * Apply all pending migrations. Throws on failure.
+ * Importable (server boot) as well as runnable as a CLI (npm run migrate).
+ */
+export async function runMigrations(): Promise<void> {
+  return migrate();
+}
+
 async function migrate() {
   console.log('🚀 Starting database migration...\n');
   
@@ -102,7 +110,7 @@ async function migrate() {
 
   } catch (error: any) {
     console.error('\n❌ Migration failed:', error.message);
-    
+
     if (error.code === 'ECONNREFUSED') {
       console.error('\n💡 Make sure PostgreSQL is running:');
       console.error('   - Check if Docker container is up: docker ps');
@@ -111,12 +119,15 @@ async function migrate() {
       console.error('\n💡 Database does not exist. Create it first:');
       console.error('   psql -U postgres -c "CREATE DATABASE seekers_saas;"');
     }
-    
-    process.exit(1);
+
+    throw error;
   } finally {
     await pool.end();
   }
 }
 
-// Run migration
-migrate();
+// Run directly as a CLI (npm run migrate); when imported, the caller
+// invokes runMigrations() and owns the error handling.
+if (require.main === module) {
+  migrate().catch(() => process.exit(1));
+}

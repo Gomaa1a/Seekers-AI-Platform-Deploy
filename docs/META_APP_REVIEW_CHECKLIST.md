@@ -27,15 +27,19 @@ what remains is deployment + Meta dashboard + business paperwork.
       domain (`backend/public/*.html`).
 - [x] Echo/self-reply loop protection for DMs and comments.
 
-## 🔲 1. Deploy (prerequisite for everything)
+## ✅ 1. Deploy (done 2026-07-02)
 
-- [ ] Backend on Railway per `backend/RAILWAY_DEPLOY.md` (Postgres + Redis).
-- [ ] Run migrations **through 012** against the production DB.
-- [ ] Deploy the Frontend (Vercel/Netlify/Railway static) with
-      `VITE_API_URL=https://<api-domain>`.
-- [ ] Set backend `FRONTEND_URL` + `CORS_ORIGIN` to the frontend domain.
-- [ ] Smoke test: `GET /health` → 200; webhook echo test:
-      `GET /api/webhooks/meta?hub.mode=subscribe&hub.verify_token=<TOKEN>&hub.challenge=test` → `test`.
+- [x] Backend on Railway: `seekers-ai-platform-production.up.railway.app`
+      (Postgres + Redis attached; migrations auto-run on each deploy).
+- [x] Migrations through 012 (applied by the auto-deploy of commit `3ca3a46`).
+- [x] Frontend live on Vercel, connected to the GitHub repo.
+- [x] Real `META_APP_SECRET` set in Railway variables.
+- [ ] Confirm `FRONTEND_URL` + `CORS_ORIGIN` in Railway point at the Vercel
+      domain (and Vercel's `VITE_API_URL` points at Railway).
+- [ ] Smoke test after each deploy: `GET /health` → 200;
+      `GET /api/meta/deletion-status?code=TEST` → "Unknown confirmation code"
+      (proves the new compliance code is live, not the old stub);
+      webhook echo: `GET /api/webhooks/meta?hub.mode=subscribe&hub.verify_token=<TOKEN>&hub.challenge=test` → `test`.
 
 ## 🔲 2. Meta App Dashboard configuration
 

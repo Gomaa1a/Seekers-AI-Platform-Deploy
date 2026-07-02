@@ -217,7 +217,53 @@ admin pages).
 
 ---
 
-## 11. Roadmap ideas
+## 11. Progress log
+
+Running record of launch work — append here as steps complete.
+
+**2026-07-02 — Meta App Review readiness day**
+- Full audit of the codebase against Meta App Review requirements.
+- Fixed all blocking bugs (commit `87ca6e2`): raw-byte webhook signature
+  verification, HMAC-signed OAuth state, `/accounts` redirect, real
+  deauthorize/data-deletion callbacks (+ migration 012 +
+  `meta_deletion_requests`), Graph API v18→v23, trimmed scopes,
+  `instagram_accounts` column names, OnboardingFlow dead code,
+  RAILWAY_DEPLOY.md callback path.
+- Shipped **native auto comment reply** (FB feed + IG comments, loop-protected)
+  and **BYO-LLM** (per-agent OpenAI/Anthropic/Gemini/custom keys, encrypted,
+  write-only, platform fallback).
+- Wrote handoff docs: `CLAUDE.md`, `PROJECT.md`, `docs/` (vision, architecture,
+  review checklist, BYO-LLM).
+- Pushed `main` (`3ca3a46`) to both GitHub repos → Vercel (frontend) and
+  Railway (backend) auto-deploys triggered; Railway auto-runs migrations on
+  deploy.
+- Real `META_APP_SECRET` set in Railway variables (local `.env` still holds a
+  placeholder on purpose — never commit the real one).
+- Verification signal for new backend code:
+  `GET /api/meta/deletion-status?code=TEST` must return
+  "Unknown confirmation code" (the old stub said "completed" for any code).
+
+**2026-07-02 (later) — Railway deploy failure diagnosed & fixed**
+- Discovered ALL Railway deploys had been failing healthcheck since Jun 28
+  (the "Active" version was even older than the last pushed commits).
+- Root cause: `railway.json` startCommand
+  `node dist/scripts/migrate.js && node dist/server.js` — Railway does not run
+  the start command through a shell, so `&&` was passed to node as a literal
+  argument: migrations ran, node exited, **the server never started**, zero
+  logs, healthcheck timeout.
+- Fix: migrations now run **inside** the server boot
+  (`server.ts` → `runMigrations()` from `scripts/migrate.ts`, which is now
+  importable and only auto-runs as a CLI); startCommand reverted to plain
+  `node dist/server.js`.
+- Reminder applied: set `META_API_VERSION=v23.0` in Railway variables
+  (was v18.0 — harmless to boot, but v18 is sunset).
+
+**Next up** (see `docs/META_APP_REVIEW_CHECKLIST.md` §2–§5):
+Meta dashboard config (callback URLs, webhook fields, OAuth redirect URI) →
+Business Verification in Meta Business Suite → dev-mode end-to-end rehearsal →
+screencast + reviewer credentials → submit permissions.
+
+## 12. Roadmap ideas
 
 - WhatsApp channel via the same agent/router.
 - "Test my key" dry-run for BYO-LLM; show which engine answered per message.

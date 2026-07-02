@@ -1,6 +1,7 @@
 import { httpServer } from './app';
 import { config } from './config/environment';
 import { db, redis, logger } from './config';
+import { runMigrations } from './scripts/migrate';
 import { startTokenRefresher, stopTokenRefresher } from './workers/tokenRefresher';
 import { closeQueue } from './workers/webhookProcessor';
 import { startFreeTierWorker, stopFreeTierWorker } from './workers/freeTierWorker';
@@ -11,6 +12,14 @@ import { startFreeTierWorker, stopFreeTierWorker } from './workers/freeTierWorke
 
 async function startServer(): Promise<void> {
   try {
+    // Apply pending DB migrations before serving traffic.
+    // Done in-process (not via `migrate.js && server.js` in the start command)
+    // because Railway does not run the start command through a shell — the
+    // `&&` chain silently never started the server (failed deploys since Jun 28).
+    logger.info('Running database migrations...');
+    await runMigrations();
+    logger.info('Database migrations up to date');
+
     // Test database connection
     logger.info('Testing database connection...');
     await db.query('SELECT NOW()');
