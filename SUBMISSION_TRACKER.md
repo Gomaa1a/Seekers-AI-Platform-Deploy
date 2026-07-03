@@ -13,7 +13,8 @@ Mark each step `[x]` as we finish it. Fill the **VALUES TO FILL** as you get the
 - Webhook verify token: *(see backend/.railway-secrets.local)*
 - Meta App ID: `1210863244347120` (app name: "Seekers Chatbot-Testing")
 - Reviewer test login: email `__________` / password `__________`
-- Test Facebook Page: `__________`  ·  Test Instagram account: `__________`
+- Test Facebook Page: `Seekers.ai` (pageId `632646263265905`)  ·  Test Instagram account: `@seekersai` (IG id `17841473388616114`)
+- Test sender IG account: `@byahmedgomaa` (added as Instagram Tester in App roles)
 
 ---
 
@@ -46,8 +47,19 @@ Mark each step `[x]` as we finish it. Fill the **VALUES TO FILL** as you get the
 
 ## Phase 4 — Test data + assets  (YOU)
 - [ ] Create reviewer test account in the app → record login in VALUES
-- [ ] Connect a Facebook Page to the test account
-- [ ] Connect an Instagram Professional account to the test account
+- [x] Connect a Facebook Page to the test account (Seekers.ai — webhook subscription verified in logs 2026-07-03)
+- [x] Connect an Instagram Professional account to the test account (@seekersai)
+
+### Live E2E test status (2026-07-03)
+- [x] **Instagram DM auto-reply VERIFIED WORKING** — webhook → agent → take_thread_control → reply delivered
+- [ ] Facebook Messenger auto-reply — webhooks not delivered yet. Root causes found:
+  1. Page Settings → Advanced Messaging: app originally had no Messenger perms → fixed by reconnect (Page webhook subscription successful)
+  2. Messenger conversation routing → Default routing app set to Seekers Chatbot-Testing ✅
+  3. **REMAINING: Social routing → "Facebook Page" still routes to U Connector** → change to Seekers Chatbot-Testing
+  4. Old threads keep their old owner app — test with a FRESH conversation (delete old thread or use a new Tester account)
+- Learned: dev-mode senders need an app role; IG senders need the **Instagram Tester** role specifically
+- Learned: error #100/2534037 = another app owns thread (auto-handled via take_thread_control since f20b1bc);
+  error #27/2534118 = Page admin must enable "Take control of conversations" for the app (Advanced Messaging → Edit)
 
 ## Phase 5 — API test calls  ⚠️ DO FIRST (up to 24h to register)  (YOU)
 Graph API Explorer, one call per permission (see APP_REVIEW_SUBMISSION.md):

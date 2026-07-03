@@ -70,6 +70,22 @@ kills the process on boot. Copy `.env.example` and fill it.
    Both reply via `POST /{comment-id}/replies` with the page token.
 10. **Never reply to yourself**: message echoes (`message.is_echo`) and comments
     where `from.id === page/ig id` must be dropped or the bot loops.
+11. **Thread ownership decides who gets webhooks + who may reply.** Send error
+    `#100 subcode 2534037` = another app owns the thread → we auto-call
+    `take_thread_control` and retry (meta.service.ts). That call fails with
+    `#27 subcode 2534118` until the Page admin enables **"Take control of
+    conversations"** for our app (Page Settings → Advanced Messaging → Edit app).
+    Also check Page Settings → **Messenger/Instagram conversation routing**:
+    BOTH "Default routing app" AND **"Social routing"** must point at our app —
+    Social routing overrides the default for Page-entry-point chats. Old threads
+    keep their old owner; test with a fresh conversation. No Graph API exists to
+    change routing — it's Page-admin-only (document it for clients instead).
+12. **Dev-mode webhooks are silently dropped for non-role senders.** FB senders
+    need an app role (Admin/Dev/Tester); IG senders need the **Instagram Tester**
+    role (App roles → Roles) AND must accept the invite in IG settings.
+13. **Meta may omit `expires_in`** on long-lived token exchanges —
+    token.service.ts falls back to 60 days; never feed raw `expires_in` into
+    `new Date()` math (Invalid Date → Postgres 22007 DateTimeParseError).
 
 ## Architecture in one paragraph
 
