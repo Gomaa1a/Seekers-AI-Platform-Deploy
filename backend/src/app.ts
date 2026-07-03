@@ -26,6 +26,7 @@ import {
   webhookRoutes,
   notificationRoutes,
   analyticsRoutes,
+  conversationRoutes,
   billingRoutes,
 } from './routes';
 
@@ -144,6 +145,7 @@ app.use('/api/workflow-requests', workflowRequestRoutes);
 app.use('/api/agents', agentRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/conversations', conversationRoutes);
 
 // Billing routes
 app.use('/api/billing', billingRoutes);

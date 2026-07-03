@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import Logo from './Logo';
 import Modal from './Modal';
+import { useAuth } from '../src/context/AuthContext';
 
 interface SidebarProps {
   isAdmin: boolean;
@@ -21,6 +22,7 @@ interface SidebarLinkItem {
 const Sidebar: React.FC<SidebarProps> = ({ isAdmin, onLogout, isOpen, onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [isSupportOpen, setIsSupportOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
@@ -98,10 +100,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isAdmin, onLogout, isOpen, onClose })
           to="/profile"
           className="flex items-center gap-4 p-3 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group"
         >
-          <div className="size-10 rounded-full border-2 border-primary/20 bg-cover bg-center shadow-lg group-hover:border-primary transition-colors shrink-0" style={{ backgroundImage: 'url(https://picsum.photos/200?random=admin)' }} />
+          <div className="size-10 rounded-full border-2 border-primary/20 bg-primary/10 text-primary font-black flex items-center justify-center shadow-lg group-hover:border-primary transition-colors shrink-0">
+            {(user?.name || user?.email || '?').charAt(0).toUpperCase()}
+          </div>
           <div className="flex flex-col flex-1 min-w-0">
-            <p className="text-sm font-black dark:text-white truncate">Alex Thompson</p>
-            <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Enterprise Lead</p>
+            <p className="text-sm font-black dark:text-white truncate">{user?.name || 'Account'}</p>
+            <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest truncate">
+              {isAdmin ? 'Platform Admin' : (user as any)?.role || 'Member'}
+            </p>
           </div>
         </Link>
         

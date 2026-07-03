@@ -9,4 +9,5 @@ export { default as agentRoutes } from './agent.routes';
 export { default as webhookRoutes } from './webhook.routes';
 export { default as notificationRoutes } from './notification.routes';
 export { default as analyticsRoutes } from './analytics.routes';
+export { default as conversationRoutes } from './conversation.routes';
 export { default as billingRoutes } from './billing.routes';
