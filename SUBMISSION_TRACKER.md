@@ -11,7 +11,7 @@ Mark each step `[x]` as we finish it. Fill the **VALUES TO FILL** as you get the
 - Backend public domain: `seekers-ai-platform-production.up.railway.app`
 - Frontend / site domain: `https://www.seekersai.org`
 - Webhook verify token: *(see backend/.railway-secrets.local)*
-- Meta App ID: `__________`
+- Meta App ID: `1210863244347120` (app name: "Seekers Chatbot-Testing")
 - Reviewer test login: email `__________` / password `__________`
 - Test Facebook Page: `__________`  ·  Test Instagram account: `__________`
 
@@ -41,8 +41,8 @@ Mark each step `[x]` as we finish it. Fill the **VALUES TO FILL** as you get the
 - [x] Subscribe webhook fields (FB: messages, messaging_postbacks, message_deliveries, message_reads, feed / IG: messages, comments)
 - [x] Fix META_REDIRECT_URI to `/api/meta/oauth/callback` (Railway var)
 - [x] Facebook Login: Valid OAuth Redirect URI `…/api/meta/oauth/callback`
-- [ ] Settings → Basic: Privacy Policy URL set
-- [ ] Settings → Basic: User Data Deletion = `…/api/meta/deletion`
+- [x] Settings → Basic: Privacy Policy URL set (`…/privacy-policy.html`, verified 2026-07-03)
+- [x] Settings → Basic: User Data Deletion = `…/api/meta/deletion` (verified 2026-07-03)
 
 ## Phase 4 — Test data + assets  (YOU)
 - [ ] Create reviewer test account in the app → record login in VALUES
