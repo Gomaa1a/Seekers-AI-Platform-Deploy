@@ -30,7 +30,11 @@ export class TokenService {
     scopes: string[]
   ): Promise<string> {
     const encrypted = this.encryptToken(accessToken);
-    const expiresAt = new Date(Date.now() + expiresIn * 1000);
+    // Meta omits expires_in on some long-lived tokens; fall back to their
+    // standard 60-day lifetime so we never INSERT an Invalid Date.
+    const safeExpiresIn =
+      Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn : 60 * 24 * 60 * 60;
+    const expiresAt = new Date(Date.now() + safeExpiresIn * 1000);
 
     const result = await db.queryOne<{ id: string }>(
       `INSERT INTO meta_tokens
