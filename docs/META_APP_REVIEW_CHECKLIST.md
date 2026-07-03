@@ -1,7 +1,20 @@
 # Meta App Review & Go-Live Checklist
 
-Status as of 2026-07-02, after the compliance/bug-fix pass. Code items are DONE;
-what remains is deployment + Meta dashboard + business paperwork.
+Status as of **2026-07-03** (live E2E debugging session). Code + deploy + dashboard
+config are DONE and **both platforms reply live**; what remains is business
+verification, screencast, and the submission forms.
+
+## ✅ 2026-07-03 milestone: LIVE END-TO-END ON BOTH PLATFORMS
+
+- [x] Instagram DM → AI reply, delivered and verified in production
+- [x] Facebook Messenger DM → AI reply, delivered and verified in production
+      (via standby-channel takeover — see below)
+- [x] Conversations inbox in the dashboard shows real chats live (10s polling)
+      with human-agent reply (`POST /api/conversations/:id/messages`)
+- Root causes fixed this session: app-level `messages` field was unsubscribed;
+  old threads owned by U Connector (solved with `standby` field + auto
+  `take_thread_control`); `expires_in` missing on long-lived tokens broke the
+  `meta_tokens` INSERT; conversations UI double-unwrapped the API envelope.
 
 ## ✅ Done in code (don't regress these)
 
@@ -34,31 +47,33 @@ what remains is deployment + Meta dashboard + business paperwork.
 - [x] Migrations through 012 (applied by the auto-deploy of commit `3ca3a46`).
 - [x] Frontend live on Vercel, connected to the GitHub repo.
 - [x] Real `META_APP_SECRET` set in Railway variables.
-- [ ] Confirm `FRONTEND_URL` + `CORS_ORIGIN` in Railway point at the Vercel
-      domain (and Vercel's `VITE_API_URL` points at Railway).
-- [ ] Smoke test after each deploy: `GET /health` → 200;
-      `GET /api/meta/deletion-status?code=TEST` → "Unknown confirmation code"
-      (proves the new compliance code is live, not the old stub);
-      webhook echo: `GET /api/webhooks/meta?hub.mode=subscribe&hub.verify_token=<TOKEN>&hub.challenge=test` → `test`.
+- [x] Confirm `FRONTEND_URL` + `CORS_ORIGIN` in Railway point at the Vercel
+      domain (and Vercel's `VITE_API_URL` points at Railway) — proven working
+      end-to-end 2026-07-03 (login, OAuth, conversations UI all cross-origin OK).
+- [x] Smoke test (2026-07-03): `GET /health` → 200; webhook echo on both
+      `/api/webhooks/meta` + `/api/webhooks/instagram` → challenge returned.
 
-## 🔲 2. Meta App Dashboard configuration
+## ✅ 2. Meta App Dashboard configuration (done 2026-07-03)
 
-- [ ] App type **Business**; icon 1024×1024, category, App Domains, Website URL.
-- [ ] Privacy Policy URL → `https://<api-domain>/privacy-policy.html`
-      (better long-term: host on www.seekersai.org).
-- [ ] **Data Deletion Callback URL** → `https://<api-domain>/api/meta/deletion`
-      (or the instructions page `/data-deletion.html`). Use the dashboard
-      **Test** button — our endpoint now really deletes and returns
-      `{ url, confirmation_code }`.
-- [ ] Deauthorize Callback URL → `https://<api-domain>/api/meta/deauthorize`.
-- [ ] Valid OAuth Redirect URI → exactly `https://<api-domain>/api/meta/oauth/callback`.
-- [ ] Webhooks product:
-      - Page object → callback `https://<api-domain>/api/webhooks/meta`,
-        fields: `messages`, `messaging_postbacks`, `feed`.
-      - Instagram object → callback `https://<api-domain>/api/webhooks/instagram`,
-        fields: `messages`, `comments`.
-      - Verify token = `META_WEBHOOK_VERIFY_TOKEN`.
-- [ ] Set real `META_APP_SECRET` in the backend env (the local .env has a placeholder!).
+- [x] App "Seekers Chatbot-Testing" (ID `1210863244347120`); icon, category
+      "Messenger bots for business", App Domains (Vercel + Railway).
+- [x] Privacy Policy URL → `…railway.app/privacy-policy.html`.
+- [x] **Data Deletion Callback URL** → `…railway.app/api/meta/deletion`.
+- [ ] Deauthorize Callback URL → `https://<api-domain>/api/meta/deauthorize`
+      (verify it's set — not re-checked this session).
+- [x] Valid OAuth Redirect URI → `…/api/meta/oauth/callback`.
+- [x] Webhooks product (verified via `GET /{app-id}/subscriptions`, active):
+      - Page object → `/api/webhooks/meta`, fields: `messages`,
+        `messaging_postbacks`, `message_deliveries`, `message_reads`, `feed`,
+        **`standby`**, **`messaging_handovers`**.
+      - Instagram object → `/api/webhooks/instagram`, fields: `messages`, `comments`.
+- [x] Real `META_APP_SECRET` in Railway (proven: signed synthetic webhook
+      accepted) AND in local `backend/.env`.
+- [x] App roles: Ahmed Gomaa (Admin) + `@byahmedgomaa` as **Instagram Tester**
+      (IG senders MUST have this role in dev mode, and accept the invite).
+- [x] Page settings: Messenger + Instagram **conversation routing** (default
+      AND social routing) → Seekers Chatbot-Testing; app granted "Take control
+      of conversations" + "Access standby channel" (both platforms).
 
 ## 🔲 3. Business verification (START EARLY — slowest step)
 
@@ -74,11 +89,14 @@ what remains is deployment + Meta dashboard + business paperwork.
 ## 🔲 4. End-to-end rehearsal (Development Mode, before submitting)
 
 With an admin/dev-role Meta user (works without review):
-- [ ] Register org → connect Page → connect IG → create agent → activate.
-- [ ] Send a DM from a personal account → AI reply arrives.
-- [ ] Comment on a page post → public AI reply arrives.
+- [x] Register org → connect Page → connect IG → create agent → activate
+      (Seekers.ai page `632646263265905` + @seekersai `17841473388616114`).
+- [x] Send a DM from a personal account → AI reply arrives — **verified live
+      2026-07-03 on BOTH Instagram and Messenger**.
+- [x] Real conversations visible live in the dashboard inbox + human reply.
+- [ ] Comment on a page post → public AI reply arrives (not tested yet).
 - [ ] Remove the app in Facebook settings → deauthorize callback fires,
-      assets deactivated.
+      assets deactivated (not tested yet).
 - [ ] Record all of this — it becomes the screencast material.
 
 ## 🔲 5. App Review submission

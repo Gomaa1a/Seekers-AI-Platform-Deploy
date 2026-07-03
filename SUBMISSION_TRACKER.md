@@ -50,16 +50,30 @@ Mark each step `[x]` as we finish it. Fill the **VALUES TO FILL** as you get the
 - [x] Connect a Facebook Page to the test account (Seekers.ai — webhook subscription verified in logs 2026-07-03)
 - [x] Connect an Instagram Professional account to the test account (@seekersai)
 
-### Live E2E test status (2026-07-03)
+### Live E2E test status — ✅ COMPLETE (2026-07-03)
 - [x] **Instagram DM auto-reply VERIFIED WORKING** — webhook → agent → take_thread_control → reply delivered
-- [ ] Facebook Messenger auto-reply — webhooks not delivered yet. Root causes found:
-  1. Page Settings → Advanced Messaging: app originally had no Messenger perms → fixed by reconnect (Page webhook subscription successful)
-  2. Messenger conversation routing → Default routing app set to Seekers Chatbot-Testing ✅
-  3. **REMAINING: Social routing → "Facebook Page" still routes to U Connector** → change to Seekers Chatbot-Testing
-  4. Old threads keep their old owner app — test with a FRESH conversation (delete old thread or use a new Tester account)
-- Learned: dev-mode senders need an app role; IG senders need the **Instagram Tester** role specifically
-- Learned: error #100/2534037 = another app owns thread (auto-handled via take_thread_control since f20b1bc);
-  error #27/2534118 = Page admin must enable "Take control of conversations" for the app (Advanced Messaging → Edit)
+- [x] **Facebook Messenger auto-reply VERIFIED WORKING** — full fix chain:
+  1. App-level webhook `messages` field was UNSUBSCRIBED → subscribed (+ `standby`, `messaging_handovers` via Graph API)
+  2. App had no Messenger perms on the Page → fixed by Page disconnect→reconnect (grants scopes + `subscribed_apps`)
+  3. Messenger conversation routing: Default AND Social routing → Seekers Chatbot-Testing
+  4. Old threads owned by U Connector (kept for other clients) → solved in code: `standby` webhook field
+     + auto `take_thread_control` on send (commit 9d729b7) — no need to remove competing apps
+- [x] **Conversations inbox shows real chats live** (10s polling) + human-agent reply from the UI
+  (conversation.routes.ts + ClientConversations rewrite, commits e2601ba + 82cfced)
+- [x] `expires_in` sometimes missing from Meta long-lived tokens → 60-day fallback (commit 293f983)
+- Learned: dev-mode senders need an app role; IG senders need the **Instagram Tester** role specifically (+ accept invite)
+- Learned: error #100/2534037 = another app owns thread (auto take_thread_control);
+  error #27/2534118 = Page admin must enable "Take control of conversations" (Advanced Messaging → Edit app);
+  Messenger delivers owned threads ONLY to the owner app (standby field is the escape hatch), IG delivers to all
+- Learned: "Reconnect Meta" button ≠ Page reconnect — only Page disconnect→connect re-runs `subscribed_apps`
+
+## ⏭️ NEXT UP (in order)
+1. Phase 5 API test calls (24h to register — start tonight)
+2. Reviewer test account (Phase 4 remainder) — record creds in VALUES
+3. Test comment auto-reply (FB post comment + IG comment) — untested
+4. Screencast (Phase 6) — the whole flow now works, record it
+5. Business verification (Meta Business Suite → Security Center) — slowest step, start in parallel
+6. Top up Railway credit (~$4.75 left!) before recording
 
 ## Phase 5 — API test calls  ⚠️ DO FIRST (up to 24h to register)  (YOU)
 Graph API Explorer, one call per permission (see APP_REVIEW_SUBMISSION.md):

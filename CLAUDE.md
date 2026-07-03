@@ -77,9 +77,16 @@ kills the process on boot. Copy `.env.example` and fill it.
     conversations"** for our app (Page Settings → Advanced Messaging → Edit app).
     Also check Page Settings → **Messenger/Instagram conversation routing**:
     BOTH "Default routing app" AND **"Social routing"** must point at our app —
-    Social routing overrides the default for Page-entry-point chats. Old threads
-    keep their old owner; test with a fresh conversation. No Graph API exists to
-    change routing — it's Page-admin-only (document it for clients instead).
+    Social routing overrides the default for Page-entry-point chats. No Graph
+    API exists to change routing — it's Page-admin-only (document for clients).
+    **Asymmetry:** IG delivers message webhooks to all subscribed apps
+    (ownership only gates sending); Messenger delivers an owned thread's events
+    ONLY to the owner. Escape hatch (implemented): subscribe the `standby`
+    webhook field + Page grants "Access standby channel" → standby events are
+    processed like normal messages and the send-retry takes the thread over.
+    Keep `standby` in BOTH the app-level subscription and page-level
+    `subscribed_apps` fields — and note the frontend "Reconnect Meta" button
+    only re-runs OAuth; only a Page disconnect→connect re-runs `subscribed_apps`.
 12. **Dev-mode webhooks are silently dropped for non-role senders.** FB senders
     need an app role (Admin/Dev/Tester); IG senders need the **Instagram Tester**
     role (App roles → Roles) AND must accept the invite in IG settings.
