@@ -158,6 +158,20 @@ async function processMetaWebhook(body: any): Promise<void> {
       await processMessagingEvent(pageId, event);
     }
 
+    // Standby channel: events for threads owned by ANOTHER app (requires the
+    // Page-granted "Access standby channel" permission + the 'standby' webhook
+    // field). We process them like normal messages — when the reply is sent,
+    // Meta rejects the non-owner with #100/2534037 and meta.service takes
+    // thread control and retries, migrating the thread to us.
+    const standby = entry.standby || [];
+    for (const event of standby) {
+      logger.info('Standby-channel event received (thread owned by another app)', {
+        pageId,
+        senderId: event.sender?.id,
+      });
+      await processMessagingEvent(pageId, event);
+    }
+
     // Process feed events (comments, reactions, etc.)
     const changes = entry.changes || [];
     for (const change of changes) {

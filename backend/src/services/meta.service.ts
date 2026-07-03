@@ -213,6 +213,9 @@ export class MetaService {
               'messaging_postbacks',
               'message_deliveries',
               'message_reads',
+              // Deliver events for threads owned by another app (handover
+              // standby channel) so we can take thread control and reply.
+              'standby',
             ].join(','),
             access_token: pageToken,
           },
