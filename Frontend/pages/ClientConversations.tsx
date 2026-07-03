@@ -62,8 +62,7 @@ const ClientConversations: React.FC = () => {
 
   const fetchConversations = async (selectFirst: boolean) => {
     try {
-      const response = await conversationsService.list();
-      const items = response.data || [];
+      const items = await conversationsService.list();
       setConversations(items);
       if (selectFirst && items.length > 0) {
         setSelectedId((prev) => prev || items[0].id);
@@ -77,8 +76,8 @@ const ClientConversations: React.FC = () => {
 
   const fetchMessages = async (conversationId: string) => {
     try {
-      const response = await conversationsService.messages(conversationId);
-      setMessages(response.data || []);
+      const items = await conversationsService.messages(conversationId);
+      setMessages(items);
     } catch (err) {
       console.error('Failed to fetch messages:', err);
       setMessages([]);
@@ -111,9 +110,9 @@ const ClientConversations: React.FC = () => {
     setIsSending(true);
     setSendError(null);
     try {
-      const response = await conversationsService.send(selectedId, text);
-      if (response.data) {
-        setMessages((prev) => [...prev, response.data]);
+      const sent = await conversationsService.send(selectedId, text);
+      if (sent) {
+        setMessages((prev) => [...prev, sent]);
       }
       setMessage('');
     } catch (err: any) {

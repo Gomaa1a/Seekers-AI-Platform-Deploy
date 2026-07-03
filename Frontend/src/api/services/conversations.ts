@@ -29,28 +29,26 @@ export interface ConversationMessage {
   created_at: string;
 }
 
-interface ApiEnvelope<T> {
-  success: boolean;
-  data: T;
-}
+// NOTE: apiClient's response interceptor already unwraps the backend's
+// { success, data } envelope — response.data IS the payload here.
 
 export const conversationsService = {
   // Backend: GET /api/conversations
-  async list(platform?: string): Promise<ApiEnvelope<ConversationSummary[]>> {
+  async list(platform?: string): Promise<ConversationSummary[]> {
     const response = await apiClient.get('/conversations', {
       params: platform ? { platform } : {},
     });
-    return response.data;
+    return response.data || [];
   },
 
   // Backend: GET /api/conversations/:id/messages
-  async messages(conversationId: string): Promise<ApiEnvelope<ConversationMessage[]>> {
+  async messages(conversationId: string): Promise<ConversationMessage[]> {
     const response = await apiClient.get(`/conversations/${conversationId}/messages`);
-    return response.data;
+    return response.data || [];
   },
 
   // Backend: POST /api/conversations/:id/messages  (human agent reply)
-  async send(conversationId: string, text: string): Promise<ApiEnvelope<ConversationMessage>> {
+  async send(conversationId: string, text: string): Promise<ConversationMessage> {
     const response = await apiClient.post(`/conversations/${conversationId}/messages`, { text });
     return response.data;
   },
