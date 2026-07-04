@@ -94,7 +94,8 @@ With an admin/dev-role Meta user (works without review):
 - [x] Send a DM from a personal account → AI reply arrives — **verified live
       2026-07-03 on BOTH Instagram and Messenger**.
 - [x] Real conversations visible live in the dashboard inbox + human reply.
-- [ ] Comment on a page post → public AI reply arrives (not tested yet).
+- [x] Comment on a page post → public AI reply arrives — verified 2026-07-04 on
+      BOTH platforms (FB needed the /{id}/comments edge fix, commit on 07-04).
 - [ ] Remove the app in Facebook settings → deauthorize callback fires,
       assets deactivated (not tested yet).
 - [ ] Record all of this — it becomes the screencast material.

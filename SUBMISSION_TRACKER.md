@@ -75,18 +75,19 @@ Mark each step `[x]` as we finish it. Fill the **VALUES TO FILL** as you get the
 5. Business verification (Meta Business Suite → Security Center) — slowest step, start in parallel
 6. Top up Railway credit (~$4.75 left!) before recording
 
-## Phase 5 — API test calls  ⚠️ DO FIRST (up to 24h to register)  (YOU)
-Graph API Explorer, one call per permission (see APP_REVIEW_SUBMISSION.md):
-- [ ] pages_show_list — `GET /me/accounts`
-- [ ] pages_read_engagement — `GET /{page-id}?fields=fan_count,posts{message,comments}`
-- [ ] pages_read_user_content — `GET /{page-id}/feed`
-- [ ] pages_manage_metadata — `POST /{page-id}/subscribed_apps?subscribed_fields=messages,feed`
-- [ ] pages_manage_engagement — `POST /{comment-id}/comments`
-- [ ] pages_messaging — `POST /{page-id}/messages` (reply to a test user)
-- [ ] instagram_basic — `GET /{ig-user-id}?fields=id,username`
-- [ ] instagram_manage_messages — `GET /{ig-user-id}/conversations`
-- [ ] instagram_manage_comments — `GET /{ig-media-id}/comments`
-- [ ] business_management — `GET /me/businesses`
+## ✅ Phase 5 — API test calls  (DONE 2026-07-04 — usage registers within 24h)
+- [x] pages_show_list — `GET /me/accounts` (Explorer)
+- [x] pages_read_engagement — `GET /{page-id}?fields=fan_count,followers_count` (Explorer)
+- [x] pages_read_user_content — `GET /{page-id}/feed` (Explorer + live comment webhooks)
+- [x] pages_manage_metadata — `subscribed_apps` calls during page reconnects
+- [x] pages_manage_engagement — FB comment auto-reply live (after /replies→/comments edge fix)
+- [x] pages_messaging — Messenger DM auto-replies live
+- [x] instagram_basic — `GET /{ig-id}?fields=id,username` (Explorer)
+- [x] instagram_manage_messages — `GET /{page-id}/conversations?platform=instagram` + live DM replies
+- [x] instagram_manage_comments — IG comment auto-reply live
+- ~~business_management~~ — SKIPPED on purpose: not in our OAuth scopes, not submitted
+- ⏳ Verify tomorrow: App Review → Permissions and Features → each permission shows recent API activity
+- **Bonus: comment auto-reply verified live on BOTH platforms (2026-07-04)**
 
 ## Phase 6 — Screencast  (YOU)
 - [ ] Record one end-to-end video (shot list in APP_REVIEW_SUBMISSION.md)
