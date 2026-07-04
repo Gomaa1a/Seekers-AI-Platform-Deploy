@@ -68,12 +68,14 @@ Mark each step `[x]` as we finish it. Fill the **VALUES TO FILL** as you get the
 - Learned: "Reconnect Meta" button ≠ Page reconnect — only Page disconnect→connect re-runs `subscribed_apps`
 
 ## ⏭️ NEXT UP (in order)
-1. Phase 5 API test calls (24h to register — start tonight)
-2. Reviewer test account (Phase 4 remainder) — record creds in VALUES
-3. Test comment auto-reply (FB post comment + IG comment) — untested
-4. Screencast (Phase 6) — the whole flow now works, record it
-5. Business verification (Meta Business Suite → Security Center) — slowest step, start in parallel
-6. Top up Railway credit (~$4.75 left!) before recording
+1. ~~Phase 5 API calls~~ ✅ done 07-04 · ~~comment auto-reply test~~ ✅ both platforms
+2. ~~Business verification~~ ✅ Seekers Llc verified since 2026-01-29
+3. Reviewer test account — register fresh client login, record creds in VALUES
+4. 07-05: check App Review → Permissions and Features → usage indicators green
+5. Screencast (Phase 6) — everything it must show now works; record it
+6. Forms (Phases 7–8) — ask Claude to draft the per-permission descriptions
+7. Top up Railway credit (~$4.75 left!) before recording
+8. Post-approval backlog: BYO n8n webhook feature (forward msg → wait reply → send back)
 
 ## ✅ Phase 5 — API test calls  (DONE 2026-07-04 — usage registers within 24h)
 - [x] pages_show_list — `GET /me/accounts` (Explorer)

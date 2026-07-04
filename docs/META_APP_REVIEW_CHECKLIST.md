@@ -75,11 +75,11 @@ verification, screencast, and the submission forms.
       AND social routing) → Seekers Chatbot-Testing; app granted "Take control
       of conversations" + "Access standby channel" (both platforms).
 
-## 🔲 3. Business verification (START EARLY — slowest step)
+## ✅ 3. Business verification — ALREADY DONE
 
-- [ ] Meta Business Suite → Security Center → **Business Verification** for
-      Seekers AI (legal registration docs, address, phone). Required for
-      Advanced Access to all messaging permissions.
+- [x] Seekers Llc (portfolio `3179870428822665`) is **Verified since
+      2026-01-29** — confirmed in Business Suite → Security Center 2026-07-04.
+      This was expected to be the slowest step; it is not a blocker.
 - [ ] Expect classification as a **Tech Provider** (we operate on behalf of
       clients) — accept the Tech Provider terms if prompted.
 - [ ] Data Handling / **Data Protection Assessment** questionnaire: we store
