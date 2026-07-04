@@ -188,7 +188,7 @@ export class WebhookRouterService {
       return true;
     }
 
-    const sent = await metaService.replyToComment(token, commentId, reply);
+    const sent = await metaService.replyToComment(token, commentId, reply, platform);
     logger.info('Native agent comment reply', {
       organizationId: page.organization_id,
       platform,

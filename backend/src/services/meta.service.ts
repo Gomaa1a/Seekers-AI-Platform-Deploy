@@ -437,16 +437,20 @@ export class MetaService {
   }
 
   /**
-   * Reply to a comment
+   * Reply to a comment.
+   * The reply edge differs per platform: IG comments use /{id}/replies,
+   * Facebook comments use /{id}/comments (/replies 400s with #100/33).
    */
   async replyToComment(
     pageToken: string,
     commentId: string,
-    message: string
+    message: string,
+    platform: 'facebook' | 'instagram' = 'instagram'
   ): Promise<boolean> {
     try {
+      const edge = platform === 'facebook' ? 'comments' : 'replies';
       await this.api.post(
-        `/${commentId}/replies`,
+        `/${commentId}/${edge}`,
         { message },
         { params: { access_token: pageToken } }
       );
