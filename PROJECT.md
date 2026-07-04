@@ -1,7 +1,7 @@
 # Seekers AI Platform — Complete Project Reference
 
 > One file, the whole project. For deep dives see `docs/` and `CLAUDE.md`.
-> Last updated: 2026-07-02.
+> Last updated: 2026-07-04.
 
 ---
 
@@ -183,11 +183,13 @@ API v23; trimmed scope list; privacy + deletion pages served over HTTPS.
 pages_read_engagement, pages_manage_engagement, pages_read_user_content,
 instagram_basic, instagram_manage_messages, instagram_manage_comments.
 
-**Remaining (non-code):** Meta dashboard configuration (URLs, webhook fields,
-real `META_APP_SECRET` in Railway env), **Business Verification** in Meta
-Business Suite (slowest — start first), end-to-end rehearsal in dev mode,
-screencast + reviewer test credentials, submit, then flip app to Live.
-Step-by-step: `docs/META_APP_REVIEW_CHECKLIST.md`.
+**Status 2026-07-04:** dashboard config DONE; business verification was ALREADY
+done (Seekers Llc verified 2026-01-29); dev-mode rehearsal DONE — **DMs and
+comment auto-replies verified live on BOTH platforms**, real-time Conversations
+inbox with human takeover shipped; all 9 permissions exercised via API (Phase 5).
+**Remaining:** reviewer test account, screencast, per-permission submission
+forms, submit, then flip app to Live. Live progress: `SUBMISSION_TRACKER.md`;
+step-by-step: `docs/META_APP_REVIEW_CHECKLIST.md`.
 
 ⚠️ Watch Railway credit — if the trial balance runs out the API goes down and
 reviewers will hit a dead URL.
@@ -270,16 +272,47 @@ Running record of launch work — append here as steps complete.
   Railway variables; if it persists, confirm the IG account is a
   Professional account and reconnect Meta to refresh scopes.
 
-**Next up** (see `docs/META_APP_REVIEW_CHECKLIST.md` §2–§5):
-Meta dashboard config (callback URLs, webhook fields, OAuth redirect URI) →
-Business Verification in Meta Business Suite → dev-mode end-to-end rehearsal →
-screencast + reviewer credentials → submit permissions.
+**2026-07-03 — The great Facebook debugging day → BOTH PLATFORMS LIVE**
+- Meta dashboard fully configured (privacy/deletion URLs, App ID `1210863244347120`).
+- Instagram DM auto-reply verified live after: sender IG added as **Instagram
+  Tester** role, thread-control permission granted, `take_thread_control`
+  retry (f20b1bc, was committed but never pushed/deployed — lesson learned).
+- Facebook took the whole day, four stacked root causes:
+  1. App-level webhook `messages` field was **unsubscribed** in the dashboard.
+  2. Our app had NO Messenger permissions on the Page (original OAuth skipped
+     them) → fixed by Page disconnect→reconnect.
+  3. Conversation routing (default + **social**) pointed at U Connector.
+  4. Old threads stay owned by their original app: solved in code —
+     `standby` webhook field + auto thread takeover (9d729b7). U Connector
+     stays installed for other clients; we steal threads on demand.
+- `expires_in` missing from Meta long-lived tokens crashed the meta_tokens
+  INSERT (22007) → 60-day fallback (293f983).
+- **Real conversations inbox shipped** (e2601ba + 82cfced): org-scoped
+  conversations API, live 10s-polling UI, human-agent reply via Send API,
+  mock chats + fake sidebar persona removed. (Roadmap "human takeover UI" ✅)
+- Debugging tools that cracked it: `GET /{app-id}/subscriptions` with the app
+  token (the dashboard UI lies), and a **signed synthetic webhook** POSTed at
+  production to prove the receive path end-to-end.
+
+**2026-07-04 — Phase 5 done; comment auto-reply verified**
+- All 9 submission permissions exercised (Graph Explorer + live bot traffic).
+- Comment auto-reply verified on BOTH platforms after fixing the FB reply
+  edge: IG = `/{comment-id}/replies`, FB = `/{comment-id}/comments`.
+- Business verification discovered ALREADY DONE (Seekers Llc, 2026-01-29).
+- Remaining: reviewer test account → screencast → submission forms → submit.
+  Live progress tracker: `SUBMISSION_TRACKER.md`.
 
 ## 12. Roadmap ideas
 
 - WhatsApp channel via the same agent/router.
 - "Test my key" dry-run for BYO-LLM; show which engine answered per message.
 - Per-org default LLM config; usage metering split platform- vs client-tokens.
-- Human takeover UI on live conversations (24h-window compliant tags).
-- Clean up legacy admin-page TypeScript errors; move legal pages to
-  www.seekersai.org.
+- ~~Human takeover UI on live conversations~~ ✅ shipped 2026-07-03
+  (Conversations inbox + `POST /api/conversations/:id/messages`).
+- **BYO n8n webhook** (client pastes their n8n URL; message → POST → wait for
+  "Respond to Webhook" reply → send to chat; 10–15s timeout → AI fallback;
+  ~70% of plumbing already exists in webhookRouter). Promised for right after
+  App Review submission.
+- Clean up legacy admin-page TypeScript errors (+ remaining mock-data
+  fallbacks in ClientAnalytics/ClientSettings/Admin pages); move legal pages
+  to www.seekersai.org.

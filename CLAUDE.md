@@ -67,7 +67,9 @@ kills the process on boot. Copy `.env.example` and fill it.
 9. **Comment replies**: FB Page comments arrive on the `feed` webhook field
    (NOT `comments` — subscribing a Page to `comments` fails the whole call).
    IG comments arrive on the `comments` field of the `instagram` object.
-   Both reply via `POST /{comment-id}/replies` with the page token.
+   Reply edges DIFFER per platform: IG = `POST /{comment-id}/replies`,
+   FB = `POST /{comment-id}/comments` (/replies on FB fails #100 subcode 33) —
+   `metaService.replyToComment(token, id, msg, platform)` handles both.
 10. **Never reply to yourself**: message echoes (`message.is_echo`) and comments
     where `from.id === page/ig id` must be dropped or the bot loops.
 11. **Thread ownership decides who gets webhooks + who may reply.** Send error
