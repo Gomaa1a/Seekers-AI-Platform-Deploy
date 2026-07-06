@@ -437,6 +437,41 @@ export class MetaService {
   }
 
   /**
+   * Fetch a message sender's public profile so the inbox can show their real
+   * social-media name and picture. Messenger PSIDs expose first/last name +
+   * profile_pic; Instagram-scoped IDs expose name/username + profile_pic.
+   * Best-effort: returns null when Meta declines (privacy settings, dev mode).
+   */
+  async getSenderProfile(
+    pageToken: string,
+    senderId: string,
+    platform: 'facebook' | 'instagram'
+  ): Promise<{ name: string | null; profilePic: string | null } | null> {
+    try {
+      const fields =
+        platform === 'facebook'
+          ? 'first_name,last_name,profile_pic'
+          : 'name,username,profile_pic';
+      const response = await this.api.get(`/${senderId}`, {
+        params: { fields, access_token: pageToken },
+      });
+      const data = response.data || {};
+      const name =
+        platform === 'facebook'
+          ? [data.first_name, data.last_name].filter(Boolean).join(' ') || null
+          : data.name || data.username || null;
+      return { name, profilePic: data.profile_pic || null };
+    } catch (error: any) {
+      logger.debug('Could not fetch sender profile', {
+        senderId,
+        platform,
+        error: error.response?.data?.error?.message || error.message,
+      });
+      return null;
+    }
+  }
+
+  /**
    * Reply to a comment.
    * The reply edge differs per platform: IG comments use /{id}/replies,
    * Facebook comments use /{id}/comments (/replies 400s with #100/33).

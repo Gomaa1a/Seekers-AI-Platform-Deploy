@@ -1,10 +1,10 @@
 # Meta App Review — Permission Submission Pack
 
 Your app (Seekers AI) is an **omnichannel AI customer-support tool**. A business
-logs in with Facebook, connects a Facebook Page and its linked Instagram
-Professional account, and the app then receives incoming **DMs and comments** via
-webhooks and replies on the business's behalf using an AI agent, plus shows
-engagement analytics.
+creates an account (email/password), then uses **Facebook Login** inside the app to
+connect a Facebook Page and its linked Instagram Professional account. The app then
+receives incoming **DMs and comments** via webhooks and replies on the business's
+behalf using an AI agent, plus shows engagement analytics.
 
 For **each** permission below you must:
 1. Paste the **Description** into the "how your app uses the permission" box.
@@ -16,7 +16,7 @@ For **each** permission below you must:
 > with the listed scopes, grant a test Page + IG account, then run the call.
 > Calls can take up to 24h to register on the review form.
 
-### The 10 permissions in this submission
+### The 9 permissions in this submission
 
 | Permission | Describe | Screencast | API test call | Reproduce steps | Required dependency |
 |---|---|---|---|---|---|
@@ -29,16 +29,18 @@ For **each** permission below you must:
 | instagram_basic | ✔ | ✔ | ✔ | — | — |
 | instagram_manage_messages | ✔ | ✔ | — | — | instagram_basic |
 | instagram_manage_comments | ✔ | ✔ | ✔ | — | instagram_basic |
-| business_management | ✔ | ✔ | ✔ | — | — |
 
 > Dependencies are auto-satisfied because every listed permission is in the same
-> submission — just don't remove any of them. `public_profile`/`email` need no review.
+> submission — just don't remove any of them. `public_profile` needs no review.
+> **Do NOT add `business_management`** — it is not in our OAuth scopes, we made no
+> test calls for it, and requesting an unused permission is a rejection risk.
 
 ---
 
 ## pages_show_list
 **Description:**
-After a business user logs in with Facebook, Seekers AI displays the list of
+After a business user connects their Facebook account via Facebook Login, Seekers
+AI displays the list of
 Facebook Pages they manage so they can choose which Page to connect to our app.
 This permission is required to render that Page-selection step during onboarding;
 without it the user cannot pick which Page our support automation should manage.
@@ -145,22 +147,10 @@ business's behalf as part of our comment auto-reply and moderation feature.
 
 ---
 
-## business_management
-**Description:**
-Seekers AI uses business_management to access the Facebook Pages and Instagram
-Professional accounts that belong to the business user's Business Manager, so they
-can connect assets owned by their business (not only assets on their personal
-profile) and so we can manage the webhook subscription for those business-owned
-assets. We access only the assets of the business that authorizes our app, solely
-to operate the support automation they set up.
-
-**Test call:** `GET /me/businesses` then `GET /{business-id}/owned_pages`
-
----
-
-## public_profile / email
-Standard **Facebook Login** scopes — used to authenticate the business user and
-create their Seekers AI account. These are typically granted without App Review.
+## public_profile
+Standard **Facebook Login** scope — used to identify the Meta user who connects
+their business assets to Seekers AI. Granted without App Review. (Platform login
+itself is our own email/password auth; we do not request the `email` scope.)
 
 ---
 
@@ -186,8 +176,8 @@ These are the three cards shown on the main submission page
 
 ## 1. Allowed usage
 > Seekers AI is an omnichannel customer-support platform for businesses. A business
-> signs in with Facebook, connects a Facebook Page and its linked Instagram
-> Professional account, and our app then receives customer messages and comments
+> creates an account, connects a Facebook Page and its linked Instagram
+> Professional account via Facebook Login, and our app then receives customer messages and comments
 > through Meta webhooks and replies on the business's behalf using an AI agent, while
 > showing engagement analytics in a dashboard.
 >
@@ -200,8 +190,9 @@ These are the three cards shown on the main submission page
 ## 2. Data handling
 Use these answers for the data-handling questions (adjust to the exact wording Meta shows):
 
-- **What data do you collect?** Business account profile (name, email, public profile
-  from Facebook Login); Meta connection data (Page IDs, Instagram account IDs, Page
+- **What data do you collect?** Business account profile (name and email from our own
+  registration form; public profile from Facebook Login when they connect Meta assets —
+  we do not request the `email` scope); Meta connection data (Page IDs, Instagram account IDs, Page
   access tokens stored encrypted); message and comment content plus sender PSIDs for
   connected accounts; usage/engagement metrics and technical logs.
 - **How is it used?** Only to receive and reply to messages/comments on behalf of the
@@ -226,8 +217,10 @@ Use these answers for the data-handling questions (adjust to the exact wording M
 > A Facebook Page and Instagram Professional account are already connected to this test
 > account so you can test immediately. Steps to verify each permission:
 >
-> 1. **Log in** at the URL above (Facebook Login). After login you can see the list of
->    Pages the user manages on the "Connect" screen (`pages_show_list`).
+> 1. **Log in** at the URL above with the email/password test credentials (our own
+>    auth — NOT Facebook Login). The test account already has a Facebook account
+>    connected via Facebook Login; on the "Connect" screen you can see the list of
+>    Pages that Facebook user manages (`pages_show_list`).
 > 2. **Connected assets:** open the Dashboard → "Connections" to see the connected
 >    Facebook Page and Instagram account (`instagram_basic`, `pages_manage_metadata`).
 > 3. **Messenger:** from any other Facebook account, send a direct message to the

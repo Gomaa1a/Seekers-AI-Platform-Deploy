@@ -19,7 +19,7 @@ Mark each step `[x]` as we finish it. Fill the **VALUES TO FILL** as you get the
 ---
 
 ## Phase 0 — Code prep (Claude can do now)
-- [x] Add `business_management` to OAuth scopes *(done in code — live after deploy)*
+- [x] ~~Add `business_management` to OAuth scopes~~ **REVERTED** — not in scopes, not submitted (see Phase 5/7)
 - [ ] Implement real data-deletion logic in `/api/meta/deletion` + `/deauthorize`
 - [ ] Wire legal pages into the site (or confirm where they're hosted)
 
@@ -106,7 +106,7 @@ Per permission: paste description, upload screencast, tick agreement.
 - [ ] instagram_basic
 - [ ] instagram_manage_messages
 - [ ] instagram_manage_comments
-- [ ] business_management
+- ~~business_management~~ — do NOT submit (not in OAuth scopes, no API usage)
 
 ## Phase 8 — Top-level sections  (YOU, paste from pack)
 - [ ] Allowed usage

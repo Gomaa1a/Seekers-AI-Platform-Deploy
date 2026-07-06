@@ -165,6 +165,21 @@ export class WebhookRouterService {
     );
     if (!agent) return false; // fall back to n8n routing
 
+    // Persist the comment before replying so it is visible in the inbox even
+    // when reply generation or the send fails.
+    const senderName: string | undefined = data?.from?.name ?? data?.from?.username;
+    const postId: string | undefined = data?.postId ?? data?.mediaId;
+    let conversationId: string | null = null;
+    try {
+      conversationId = await this.recordComment(
+        page,
+        platform,
+        { commentId, postId, senderId: fromId, senderName, text }
+      );
+    } catch (error) {
+      logger.error('Failed to persist incoming comment', { commentId, error });
+    }
+
     let reply: string;
     try {
       reply = await agentService.generateReply(
@@ -195,7 +210,92 @@ export class WebhookRouterService {
       commentId,
       sent,
     });
+
+    if (sent && conversationId) {
+      try {
+        await this.recordCommentMessage(conversationId, 'outbound', reply, {
+          replyToCommentId: commentId,
+          postId,
+        }, 'ai');
+      } catch (error) {
+        logger.error('Failed to persist AI comment reply', { commentId, error });
+      }
+    }
     return true;
+  }
+
+  /**
+   * Persist an incoming comment into the conversations inbox. Comment threads
+   * are one conversation per commenter per asset, flagged with
+   * metadata.type = 'comment' so the UI and reply endpoint treat them as
+   * public comment threads rather than DMs.
+   */
+  private async recordComment(
+    page: { id: string; organization_id: string; page_name: string },
+    platform: 'facebook' | 'instagram',
+    comment: {
+      commentId: string;
+      postId?: string;
+      senderId?: string;
+      senderName?: string;
+      text: string;
+    }
+  ): Promise<string> {
+    const platformConversationId = `comment:${page.id}:${comment.senderId || comment.postId || comment.commentId}`;
+
+    let conversation = await db.queryOne<{ id: string }>(
+      `SELECT id FROM conversations
+        WHERE platform = $1 AND platform_conversation_id = $2`,
+      [platform, platformConversationId]
+    );
+
+    if (!conversation) {
+      conversation = await db.queryOne<{ id: string }>(
+        `INSERT INTO conversations
+           (organization_id, platform, platform_conversation_id, page_id,
+            customer_id, customer_name, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id`,
+        [
+          page.organization_id,
+          platform,
+          platformConversationId,
+          page.id,
+          comment.senderId || comment.commentId,
+          comment.senderName || null,
+          JSON.stringify({ type: 'comment', postId: comment.postId || null }),
+        ]
+      );
+    }
+    if (!conversation) throw new Error('Failed to create comment conversation');
+
+    await this.recordCommentMessage(conversation.id, 'inbound', comment.text, {
+      commentId: comment.commentId,
+      postId: comment.postId,
+    }, null);
+
+    return conversation.id;
+  }
+
+  private async recordCommentMessage(
+    conversationId: string,
+    direction: 'inbound' | 'outbound',
+    content: string,
+    metadata: Record<string, any>,
+    handledBy: 'ai' | 'human' | null
+  ): Promise<void> {
+    await db.query(
+      `INSERT INTO messages
+         (conversation_id, direction, message_type, content, handled_by, metadata)
+       VALUES ($1, $2, 'text', $3, $4, $5)`,
+      [conversationId, direction, content, handledBy, JSON.stringify(metadata)]
+    );
+    await db.query(
+      `UPDATE conversations
+          SET message_count = message_count + 1, last_message_at = NOW(), status = 'active'
+        WHERE id = $1`,
+      [conversationId]
+    );
   }
 
   /**

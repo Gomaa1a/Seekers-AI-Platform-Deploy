@@ -130,6 +130,33 @@ router.get(
 );
 
 /**
+ * @route   PUT /api/auth/me
+ * @desc    Update current user's profile (name, phone, job title, timezone)
+ * @access  Private
+ */
+router.put(
+  '/me',
+  authenticate,
+  asyncHandler(async (req: Request & AuthenticatedRequest, res: Response) => {
+    const { fullName, phone, jobTitle, timezone, avatarUrl } = req.body || {};
+
+    const user = await authService.updateProfile(req.user!.userId, {
+      fullName,
+      phone,
+      jobTitle,
+      timezone,
+      avatarUrl,
+    });
+
+    res.json({
+      success: true,
+      message: 'Profile updated',
+      data: { user },
+    });
+  })
+);
+
+/**
  * @route   POST /api/auth/forgot-password
  * @desc    Request password reset
  * @access  Public

@@ -15,6 +15,7 @@ export interface ConversationSummary {
   message_count: number;
   last_message_at: string;
   started_at: string;
+  conversation_type: 'dm' | 'comment';
   last_message: string | null;
   last_message_direction: 'inbound' | 'outbound' | null;
 }
@@ -26,6 +27,7 @@ export interface ConversationMessage {
   content: string | null;
   attachments: unknown[];
   handled_by: 'ai' | 'human' | null;
+  metadata?: Record<string, unknown> | null;
   created_at: string;
 }
 

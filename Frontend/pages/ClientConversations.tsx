@@ -56,6 +56,7 @@ const ClientConversations: React.FC = () => {
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'dm' | 'comment'>('all');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const selectedConversation = conversations.find((c) => c.id === selectedId) || null;
@@ -136,8 +137,9 @@ const ClientConversations: React.FC = () => {
 
   const filteredConversations = conversations.filter(
     (c) =>
-      displayName(c).toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (c.last_message || '').toLowerCase().includes(searchQuery.toLowerCase())
+      (typeFilter === 'all' || (c.conversation_type || 'dm') === typeFilter) &&
+      (displayName(c).toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.last_message || '').toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   if (isLoading) {
@@ -152,7 +154,7 @@ const ClientConversations: React.FC = () => {
     <div className="h-[calc(100vh-140px)] flex flex-col md:flex-row gap-6 animate-in slide-in-from-bottom duration-500">
       {/* Inbox List */}
       <div className="w-full md:w-80 lg:w-96 bg-white dark:bg-surface-dark border border-slate-200 dark:border-border-dark rounded-2xl flex flex-col overflow-hidden shadow-sm">
-        <div className="p-4 border-b border-slate-100 dark:border-border-dark bg-slate-50/50 dark:bg-slate-800/30">
+        <div className="p-4 border-b border-slate-100 dark:border-border-dark bg-slate-50/50 dark:bg-slate-800/30 space-y-3">
           <div className="flex items-center gap-2 bg-white dark:bg-background-dark px-3 py-2 rounded-xl border border-slate-200 dark:border-border-dark">
             <span className="material-symbols-outlined text-slate-400 text-lg">search</span>
             <input
@@ -162,6 +164,25 @@ const ClientConversations: React.FC = () => {
               placeholder="Search chats..."
               className="bg-transparent border-none text-xs w-full focus:ring-0"
             />
+          </div>
+          <div className="flex gap-1">
+            {([
+              ['all', 'All'],
+              ['dm', 'Messages'],
+              ['comment', 'Comments'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => setTypeFilter(value)}
+                className={`flex-1 text-[11px] font-bold py-1.5 rounded-lg transition-all ${
+                  typeFilter === value
+                    ? 'bg-primary text-background-dark'
+                    : 'bg-white dark:bg-background-dark text-slate-500 border border-slate-200 dark:border-border-dark hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
         <div className="flex-1 overflow-y-auto no-scrollbar">
@@ -184,7 +205,14 @@ const ClientConversations: React.FC = () => {
                   <Avatar conversation={c} />
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-start">
-                      <h4 className="text-sm font-bold truncate dark:text-white">{displayName(c)}</h4>
+                      <h4 className="text-sm font-bold truncate dark:text-white flex items-center gap-1.5">
+                        {displayName(c)}
+                        {c.conversation_type === 'comment' && (
+                          <span className="text-[9px] font-bold uppercase bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded">
+                            Comment
+                          </span>
+                        )}
+                      </h4>
                       <span className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
                         {getPlatformIcon(c.platform)} {timeAgo(c.last_message_at)}
                       </span>
@@ -217,6 +245,11 @@ const ClientConversations: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                {selectedConversation.conversation_type === 'comment' && (
+                  <span className="text-[10px] font-bold uppercase bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-2 py-1 rounded">
+                    Comment thread
+                  </span>
+                )}
                 <span className="text-xs text-slate-400 font-bold uppercase">{selectedConversation.platform}</span>
               </div>
             </div>
@@ -267,7 +300,11 @@ const ClientConversations: React.FC = () => {
                   type="text"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Reply as a human agent..."
+                  placeholder={
+                    selectedConversation.conversation_type === 'comment'
+                      ? 'Reply publicly to this comment...'
+                      : 'Reply as a human agent...'
+                  }
                   className="flex-1 bg-transparent border-none text-sm focus:ring-0"
                 />
                 <button

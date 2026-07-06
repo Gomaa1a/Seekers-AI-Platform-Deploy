@@ -38,6 +38,28 @@ router.get(
 );
 
 /**
+ * @route   GET /api/analytics/overview
+ * @desc    Engagement overview for the client analytics page: daily AI/human
+ *          reply volume, totals + AI efficiency, conversation counts, platforms.
+ * @access  Private
+ */
+router.get(
+  '/overview',
+  authenticate,
+  asyncHandler(async (req, res) => {
+    const organizationId = req.user!.organizationId;
+    const days = Math.min(parseInt(req.query.days as string) || 30, 365);
+
+    const data = await analyticsService.getEngagementOverview(organizationId, days);
+
+    res.json({
+      success: true,
+      data,
+    });
+  })
+);
+
+/**
  * @route   GET /api/analytics/messages
  * @desc    Get daily message statistics
  * @access  Private

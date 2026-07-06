@@ -21,7 +21,26 @@ export interface ListConversationsParams {
 // Aligned with backend routes in analytics.routes.ts
 // ============================================
 
+export interface EngagementOverview {
+  messageVolume: Array<{ date: string; ai: number; human: number; inbound: number }>;
+  totals: {
+    received: number;
+    aiReplies: number;
+    humanReplies: number;
+    aiEfficiency: number;
+  };
+  conversations: { total: number; active: number; dms: number; comments: number };
+  platforms: Array<{ platform: string; conversations: number; messages: number }>;
+}
+
 export const analyticsService = {
+  // Engagement overview for the client analytics page
+  // Backend: GET /api/analytics/overview?days=30
+  async getEngagementOverview(days: number = 30): Promise<EngagementOverview> {
+    const response = await apiClient.get('/analytics/overview', { params: { days } });
+    return response.data;
+  },
+
   // Get organization analytics (overview)
   // Backend: GET /api/analytics?days=30
   async getAnalytics(params: AnalyticsParams = {}): Promise<AnalyticsData> {

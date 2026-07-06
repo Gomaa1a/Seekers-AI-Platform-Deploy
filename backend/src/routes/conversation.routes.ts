@@ -20,6 +20,8 @@ router.get(
     const organizationId = req.user!.organizationId;
     const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
     const platform = req.query.platform as string | undefined;
+    // Optional filter: 'dm' (Messenger/IG DMs) or 'comment' (public comment threads)
+    const type = req.query.type as string | undefined;
 
     const rows = await db.queryAll(
       `SELECT c.id,
@@ -31,6 +33,7 @@ router.get(
               c.message_count,
               c.last_message_at,
               c.started_at,
+              COALESCE(c.metadata->>'type', 'dm') AS conversation_type,
               lm.content AS last_message,
               lm.direction AS last_message_direction
          FROM conversations c
@@ -43,9 +46,10 @@ router.get(
          ) lm ON TRUE
         WHERE c.organization_id = $1
           AND ($2::text IS NULL OR c.platform = $2)
+          AND ($4::text IS NULL OR COALESCE(c.metadata->>'type', 'dm') = $4)
         ORDER BY c.last_message_at DESC
         LIMIT $3`,
-      [organizationId, platform || null, limit]
+      [organizationId, platform || null, limit, type || null]
     );
 
     res.json({ success: true, data: rows });
@@ -74,7 +78,7 @@ router.get(
     }
 
     const rows = await db.queryAll(
-      `SELECT id, direction, message_type, content, attachments, handled_by, created_at
+      `SELECT id, direction, message_type, content, attachments, handled_by, metadata, created_at
          FROM messages
         WHERE conversation_id = $1
         ORDER BY created_at ASC
@@ -110,8 +114,10 @@ router.post(
       platform: 'facebook' | 'instagram';
       page_id: string;
       customer_id: string;
+      conversation_type: string;
     }>(
-      `SELECT id, platform, page_id, customer_id
+      `SELECT id, platform, page_id, customer_id,
+              COALESCE(metadata->>'type', 'dm') AS conversation_type
          FROM conversations
         WHERE id = $1 AND organization_id = $2`,
       [conversationId, organizationId]
@@ -147,20 +153,52 @@ router.post(
       return;
     }
 
-    const sent = await metaService.sendMessage(sendToken, conversation.customer_id, text);
+    let sent: boolean;
+    let messageMetadata: Record<string, any> = {};
+    if (conversation.conversation_type === 'comment') {
+      // Comment threads: post a public reply to the customer's latest comment
+      // instead of sending a DM (the customer_id here is not a messaging PSID).
+      const lastComment = await db.queryOne<{ comment_id: string | null }>(
+        `SELECT metadata->>'commentId' AS comment_id
+           FROM messages
+          WHERE conversation_id = $1 AND direction = 'inbound'
+            AND metadata->>'commentId' IS NOT NULL
+          ORDER BY created_at DESC LIMIT 1`,
+        [conversationId]
+      );
+      if (!lastComment?.comment_id) {
+        res.status(409).json({
+          success: false,
+          error: 'No comment found in this thread to reply to',
+        });
+        return;
+      }
+      sent = await metaService.replyToComment(
+        sendToken,
+        lastComment.comment_id,
+        text,
+        conversation.platform
+      );
+      messageMetadata = { replyToCommentId: lastComment.comment_id };
+    } else {
+      sent = await metaService.sendMessage(sendToken, conversation.customer_id, text);
+    }
     if (!sent) {
       res.status(502).json({
         success: false,
-        error: 'Meta rejected the message (outside 24h window or thread owned by another app)',
+        error:
+          conversation.conversation_type === 'comment'
+            ? 'Meta rejected the comment reply (comment may have been deleted)'
+            : 'Meta rejected the message (outside 24h window or thread owned by another app)',
       });
       return;
     }
 
     const message = await db.queryOne(
-      `INSERT INTO messages (conversation_id, direction, message_type, content, handled_by)
-       VALUES ($1, 'outbound', 'text', $2, 'human')
+      `INSERT INTO messages (conversation_id, direction, message_type, content, handled_by, metadata)
+       VALUES ($1, 'outbound', 'text', $2, 'human', $3)
        RETURNING id, direction, message_type, content, attachments, handled_by, created_at`,
-      [conversationId, text]
+      [conversationId, text, JSON.stringify(messageMetadata)]
     );
     await db.query(
       `UPDATE conversations

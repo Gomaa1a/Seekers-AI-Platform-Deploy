@@ -110,6 +110,7 @@ export class LiveAgentService {
     const conversation = await this.findOrCreateConversation(
       page,
       platform,
+      assetId,
       senderId,
       senderName
     );
@@ -224,12 +225,13 @@ export class LiveAgentService {
   private async findOrCreateConversation(
     page: PageRow,
     platform: Platform,
+    assetId: string,
     senderId: string,
     senderName?: string
   ): Promise<{ id: string }> {
     const platformConversationId = `${page.id}:${senderId}`;
-    const existing = await db.queryOne<{ id: string }>(
-      `SELECT id FROM conversations
+    const existing = await db.queryOne<{ id: string; customer_name: string | null }>(
+      `SELECT id, customer_name FROM conversations
         WHERE platform = $1 AND platform_conversation_id = $2`,
       [platform, platformConversationId]
     );
@@ -240,13 +242,21 @@ export class LiveAgentService {
           WHERE id = $1`,
         [existing.id]
       );
+      // Backfill the real social-media name/picture on older conversations
+      // created before profile fetching existed.
+      if (!existing.customer_name) {
+        await this.enrichCustomerProfile(existing.id, platform, assetId, page.id, senderId);
+      }
       return existing;
     }
 
+    const profile = await this.fetchSenderProfile(platform, assetId, page.id, senderId);
+
     const created = await db.queryOne<{ id: string }>(
       `INSERT INTO conversations
-         (organization_id, platform, platform_conversation_id, page_id, customer_id, customer_name)
-       VALUES ($1, $2, $3, $4, $5, $6)
+         (organization_id, platform, platform_conversation_id, page_id,
+          customer_id, customer_name, customer_profile_pic)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id`,
       [
         page.organization_id,
@@ -254,11 +264,45 @@ export class LiveAgentService {
         platformConversationId,
         page.id,
         senderId,
-        senderName || null,
+        profile?.name || senderName || null,
+        profile?.profilePic || null,
       ]
     );
     if (!created) throw new Error('Failed to create conversation');
     return created;
+  }
+
+  /**
+   * Look up the sender's public profile (real name + picture) with the page
+   * token. Best-effort — inbox falls back to "Facebook/Instagram user".
+   */
+  private async fetchSenderProfile(
+    platform: Platform,
+    assetId: string,
+    pageInternalId: string,
+    senderId: string
+  ): Promise<{ name: string | null; profilePic: string | null } | null> {
+    const token = await this.getSendToken(platform, assetId, pageInternalId);
+    if (!token) return null;
+    return metaService.getSenderProfile(token, senderId, platform);
+  }
+
+  private async enrichCustomerProfile(
+    conversationId: string,
+    platform: Platform,
+    assetId: string,
+    pageInternalId: string,
+    senderId: string
+  ): Promise<void> {
+    const profile = await this.fetchSenderProfile(platform, assetId, pageInternalId, senderId);
+    if (!profile?.name && !profile?.profilePic) return;
+    await db.query(
+      `UPDATE conversations
+          SET customer_name = COALESCE($2, customer_name),
+              customer_profile_pic = COALESCE($3, customer_profile_pic)
+        WHERE id = $1`,
+      [conversationId, profile.name, profile.profilePic]
+    );
   }
 
   private async loadHistory(

@@ -10,7 +10,7 @@ import path from 'path';
 import { config } from './config/environment';
 import { logger } from './config';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
-import { apiLimiter } from './middleware/rateLimiter';
+import { apiLimiter, webhookLimiter } from './middleware/rateLimiter';
 import { tenantRateLimiter } from './middleware/tenantRateLimiter';
 
 // Import routes
@@ -101,7 +101,14 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 // Rate Limiting
 // ============================================
 
-// Apply rate limiting to API routes
+// Meta webhooks are mounted BEFORE the global apiLimiter: they arrive
+// unauthenticated from a shared pool of Meta IPs, and one conversation fires
+// several events (message + delivery + read + echo) — the 100/15min IP limit
+// would 429 real events and Meta disables endpoints that keep failing.
+// webhookLimiter (1000/min) still bounds abuse; signatures gate authenticity.
+app.use('/api/webhooks', webhookLimiter, webhookRoutes);
+
+// Apply rate limiting to all other API routes
 app.use('/api/', apiLimiter);
 
 // ============================================
@@ -127,9 +134,8 @@ app.use(express.static(path.join(__dirname, '../public')));
 // API Routes
 // ============================================
 
-// Public routes
+// Public routes (webhooks are mounted above, before the global rate limiter)
 app.use('/api/auth', authRoutes);
-app.use('/api/webhooks', webhookRoutes);
 
 // Admin auth routes
 app.use('/api/admin/auth', adminAuthRoutes);

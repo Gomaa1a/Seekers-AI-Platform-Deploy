@@ -72,9 +72,51 @@ export const authService = {
     return response.data;
   },
 
-  async getProfile(): Promise<User> {
-    const response = await apiClient.get<User>('/auth/me');
-    return response.data;
+  // Backend: GET /api/auth/me → { user, organization }
+  async getProfile(): Promise<{
+    user: User & {
+      first_name?: string;
+      last_name?: string;
+      job_title?: string | null;
+      timezone?: string | null;
+      two_factor_enabled?: boolean;
+    };
+    organization: Organization;
+  }> {
+    const response = await apiClient.get('/auth/me');
+    return response.data as any;
+  },
+
+  // Backend: PUT /api/auth/me
+  async updateProfile(data: {
+    fullName?: string;
+    phone?: string;
+    jobTitle?: string;
+    timezone?: string;
+    avatarUrl?: string;
+  }): Promise<User> {
+    const response = await apiClient.put('/auth/me', data);
+    return (response.data as any)?.user;
+  },
+
+  // Two-factor authentication (backend: /api/auth/2fa/*)
+  async get2FAStatus(): Promise<boolean> {
+    const response = await apiClient.get('/auth/2fa/status');
+    return Boolean((response.data as any)?.twoFactorEnabled);
+  },
+
+  async setup2FA(): Promise<{ qrCodeDataUrl: string; manualEntryKey: string }> {
+    const response = await apiClient.post('/auth/2fa/setup');
+    return response.data as any;
+  },
+
+  async enable2FA(token: string): Promise<{ backupCodes: string[] }> {
+    const response = await apiClient.post('/auth/2fa/enable', { token });
+    return response.data as any;
+  },
+
+  async disable2FA(token: string): Promise<void> {
+    await apiClient.post('/auth/2fa/disable', { token });
   },
 
   async changePassword(data: ChangePasswordData): Promise<void> {

@@ -39,6 +39,100 @@ export class AnalyticsService {
     };
   }
 
+  /**
+   * Everything the client "Engagement Analytics" page needs in one call:
+   * daily AI-vs-human reply volume (zero-filled for missing days), reply
+   * totals/efficiency, conversation counts and the platform breakdown.
+   */
+  async getEngagementOverview(
+    organizationId: string,
+    days: number = 30
+  ): Promise<{
+    messageVolume: Array<{ date: string; ai: number; human: number; inbound: number }>;
+    totals: {
+      received: number;
+      aiReplies: number;
+      humanReplies: number;
+      aiEfficiency: number;
+    };
+    conversations: { total: number; active: number; dms: number; comments: number };
+    platforms: Array<{ platform: string; conversations: number; messages: number }>;
+  }> {
+    const [volumeRows, totals, convStats, platforms] = await Promise.all([
+      db.queryAll<{ date: string; ai: string; human: string; inbound: string }>(
+        `SELECT to_char(DATE(m.created_at), 'YYYY-MM-DD') as date,
+                COUNT(*) FILTER (WHERE m.direction = 'outbound' AND m.handled_by = 'ai') as ai,
+                COUNT(*) FILTER (WHERE m.direction = 'outbound' AND m.handled_by = 'human') as human,
+                COUNT(*) FILTER (WHERE m.direction = 'inbound') as inbound
+         FROM messages m
+         JOIN conversations c ON c.id = m.conversation_id
+         WHERE c.organization_id = $1
+           AND m.created_at > NOW() - INTERVAL '1 day' * $2
+         GROUP BY DATE(m.created_at)
+         ORDER BY date`,
+        [organizationId, days]
+      ),
+      db.queryOne<{ received: string; ai_replies: string; human_replies: string }>(
+        `SELECT COUNT(*) FILTER (WHERE m.direction = 'inbound') as received,
+                COUNT(*) FILTER (WHERE m.direction = 'outbound' AND m.handled_by = 'ai') as ai_replies,
+                COUNT(*) FILTER (WHERE m.direction = 'outbound' AND m.handled_by = 'human') as human_replies
+         FROM messages m
+         JOIN conversations c ON c.id = m.conversation_id
+         WHERE c.organization_id = $1
+           AND m.created_at > NOW() - INTERVAL '1 day' * $2`,
+        [organizationId, days]
+      ),
+      db.queryOne<{ total: string; active: string; dms: string; comments: string }>(
+        `SELECT COUNT(*) as total,
+                COUNT(*) FILTER (WHERE status = 'active') as active,
+                COUNT(*) FILTER (WHERE COALESCE(metadata->>'type', 'dm') = 'dm') as dms,
+                COUNT(*) FILTER (WHERE metadata->>'type' = 'comment') as comments
+         FROM conversations
+         WHERE organization_id = $1
+           AND last_message_at > NOW() - INTERVAL '1 day' * $2`,
+        [organizationId, days]
+      ),
+      this.getPlatformBreakdown(organizationId),
+    ]);
+
+    // Zero-fill missing days so the chart renders a continuous range.
+    const byDate = new Map(volumeRows.map((r) => [r.date, r]));
+    const messageVolume: Array<{ date: string; ai: number; human: number; inbound: number }> = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      const row = byDate.get(key);
+      messageVolume.push({
+        date: key,
+        ai: parseInt(row?.ai || '0'),
+        human: parseInt(row?.human || '0'),
+        inbound: parseInt(row?.inbound || '0'),
+      });
+    }
+
+    const aiReplies = parseInt(totals?.ai_replies || '0');
+    const humanReplies = parseInt(totals?.human_replies || '0');
+    const repliesTotal = aiReplies + humanReplies;
+
+    return {
+      messageVolume,
+      totals: {
+        received: parseInt(totals?.received || '0'),
+        aiReplies,
+        humanReplies,
+        aiEfficiency: repliesTotal > 0 ? (aiReplies / repliesTotal) * 100 : 0,
+      },
+      conversations: {
+        total: parseInt(convStats?.total || '0'),
+        active: parseInt(convStats?.active || '0'),
+        dms: parseInt(convStats?.dms || '0'),
+        comments: parseInt(convStats?.comments || '0'),
+      },
+      platforms,
+    };
+  }
+
   private async getConversationStats(
     organizationId: string,
     dateRange: { from: Date; to: Date }

@@ -300,12 +300,90 @@ export class AuthService {
       throw new Error('Organization not found');
     }
 
-    const { password_hash, organization_id, ...userWithoutPassword } = result;
+    const { organization_id, ...user } = result;
 
     return {
-      user: userWithoutPassword,
+      user: this.stripSensitiveFields(user),
       organization,
     };
+  }
+
+  /**
+   * Remove secrets that must never leave the server (u.* selects include the
+   * 2FA secrets and reset tokens added by later migrations).
+   */
+  private stripSensitiveFields(user: User): Omit<User, 'password_hash'> {
+    const {
+      password_hash,
+      two_factor_secret,
+      two_factor_temp_secret,
+      two_factor_backup_codes,
+      password_reset_token,
+      password_reset_expires,
+      verification_token,
+      ...safe
+    } = user as User & Record<string, unknown>;
+    return safe as Omit<User, 'password_hash'>;
+  }
+
+  /**
+   * Update the current user's editable profile fields.
+   * Only the provided fields are changed.
+   */
+  async updateProfile(
+    userId: string,
+    input: {
+      fullName?: string;
+      phone?: string;
+      jobTitle?: string;
+      timezone?: string;
+      avatarUrl?: string;
+    }
+  ): Promise<Omit<User, 'password_hash'>> {
+    const sets: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+
+    if (input.fullName !== undefined && input.fullName.trim()) {
+      const nameParts = input.fullName.trim().split(/\s+/);
+      sets.push(`first_name = $${idx++}`);
+      params.push(nameParts[0]);
+      sets.push(`last_name = $${idx++}`);
+      params.push(nameParts.slice(1).join(' ') || '');
+    }
+    if (input.phone !== undefined) {
+      sets.push(`phone = $${idx++}`);
+      params.push(input.phone || null);
+    }
+    if (input.jobTitle !== undefined) {
+      sets.push(`job_title = $${idx++}`);
+      params.push(input.jobTitle || null);
+    }
+    if (input.timezone !== undefined) {
+      sets.push(`timezone = $${idx++}`);
+      params.push(input.timezone || null);
+    }
+    if (input.avatarUrl !== undefined) {
+      sets.push(`avatar_url = $${idx++}`);
+      params.push(input.avatarUrl || null);
+    }
+
+    if (sets.length === 0) {
+      throw new Error('No profile fields to update');
+    }
+
+    sets.push(`updated_at = NOW()`);
+    params.push(userId);
+
+    const updated = await db.queryOne<User>(
+      `UPDATE users SET ${sets.join(', ')} WHERE id = $${idx} RETURNING *`,
+      params
+    );
+    if (!updated) {
+      throw new Error('User not found');
+    }
+
+    return this.stripSensitiveFields(updated);
   }
 
   /**
